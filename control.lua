@@ -15,155 +15,147 @@
 
 -- imports
 
-local chunkPropertyUtils = require("libs/ChunkPropertyUtils")
-local unitUtils = require("libs/UnitUtils")
-local baseUtils = require("libs/BaseUtils")
-local mapUtils = require("libs/MapUtils")
-local mathUtils = require("libs/MathUtils")
-local unitGroupUtils = require("libs/UnitGroupUtils")
-local chunkProcessor = require("libs/ChunkProcessor")
-local mapProcessor = require("libs/MapProcessor")
-local constants = require("libs/Constants")
-local pheromoneUtils = require("libs/PheromoneUtils")
-local squadDefense = require("libs/SquadDefense")
-local squadAttack = require("libs/SquadAttack")
-local aiAttackWave = require("libs/AIAttackWave")
-local aiPlanning = require("libs/AIPlanning")
+local ChunkPropertyUtils = require("libs/ChunkPropertyUtils")
+local UnitUtils = require("libs/UnitUtils")
+local BaseUtils = require("libs/BaseUtils")
+local MathUtils = require("libs/MathUtils")
+local Processor = require("libs/Processor")
+local Constants = require("libs/Constants")
+local MapUtils = require("libs/MapUtils")
+local Squad = require("libs/Squad")
 local tests = require("tests")
-local chunkUtils = require("libs/ChunkUtils")
-local upgrade = require("Upgrade")
-local aiPredicates = require("libs/AIPredicates")
-local stringUtils = require("libs/StringUtils")
-local queryUtils = require("libs/QueryUtils")
+local ChunkUtils = require("libs/ChunkUtils")
+local Upgrade = require("libs/Upgrade")
+local Utils = require("libs/Utils")
 
--- constants
+-- Constants
 
-local FACTION_SET = constants.FACTION_SET
+local FACTION_SET = Constants.FACTION_SET
 
-local ENEMY_ALIGNMENT_LOOKUP = constants.ENEMY_ALIGNMENT_LOOKUP
-local VANILLA_ENTITY_TYPE_LOOKUP = constants.VANILLA_ENTITY_TYPE_LOOKUP
-local ENTITY_SKIP_COUNT_LOOKUP = constants.ENTITY_SKIP_COUNT_LOOKUP
-local BUILDING_HIVE_TYPE_LOOKUP = constants.BUILDING_HIVE_TYPE_LOOKUP
+local ENEMY_ALIGNMENT_LOOKUP = Constants.ENEMY_ALIGNMENT_LOOKUP
+local VANILLA_ENTITY_TYPE_LOOKUP = Constants.VANILLA_ENTITY_TYPE_LOOKUP
+local ENTITY_SKIP_COUNT_LOOKUP = Constants.ENTITY_SKIP_COUNT_LOOKUP
+local BUILDING_HIVE_TYPE_LOOKUP = Constants.BUILDING_HIVE_TYPE_LOOKUP
 
-local TICKS_A_MINUTE = constants.TICKS_A_MINUTE
-local COMMAND_TIMEOUT = constants.COMMAND_TIMEOUT
+local TICKS_A_MINUTE = Constants.TICKS_A_MINUTE
+local COMMAND_TIMEOUT = Constants.COMMAND_TIMEOUT
 
-local RECOVER_NEST_COST = constants.RECOVER_NEST_COST
-local RECOVER_WORM_COST = constants.RECOVER_WORM_COST
+local RECOVER_NEST_COST = Constants.RECOVER_NEST_COST
+local RECOVER_WORM_COST = Constants.RECOVER_WORM_COST
 
-local RETREAT_GRAB_RADIUS = constants.RETREAT_GRAB_RADIUS
+local RETREAT_GRAB_RADIUS = Constants.RETREAT_GRAB_RADIUS
 
-local RETREAT_SPAWNER_GRAB_RADIUS = constants.RETREAT_SPAWNER_GRAB_RADIUS
-local BASE_PHEROMONE = constants.BASE_PHEROMONE
-local PLAYER_PHEROMONE = constants.PLAYER_PHEROMONE
+local RETREAT_SPAWNER_GRAB_RADIUS = Constants.RETREAT_SPAWNER_GRAB_RADIUS
+local BASE_PHEROMONE = Constants.BASE_PHEROMONE
+local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
 
-local UNIT_DEATH_POINT_COST = constants.UNIT_DEATH_POINT_COST
+local UNIT_DEATH_POINT_COST = Constants.UNIT_DEATH_POINT_COST
 
-local MAX_HIVE_TTL = constants.MAX_HIVE_TTL
-local MIN_HIVE_TTL = constants.MIN_HIVE_TTL
-local DEV_HIVE_TTL = constants.DEV_HIVE_TTL
+local MAX_HIVE_TTL = Constants.MAX_HIVE_TTL
+local MIN_HIVE_TTL = Constants.MIN_HIVE_TTL
+local DEV_HIVE_TTL = Constants.DEV_HIVE_TTL
 
-local SETTLE_CLOUD_WARMUP = constants.SETTLE_CLOUD_WARMUP
+local SETTLE_CLOUD_WARMUP = Constants.SETTLE_CLOUD_WARMUP
 
 -- imported functions
 
-local isMember = stringUtils.isMember
-local split = stringUtils.split
+local isMember = Utils.isMember
+local split = Utils.split
 
-local planning = aiPlanning.planning
+local planning = BaseUtils.planning
 
-local addBasesToAllEnemyStructures = chunkUtils.addBasesToAllEnemyStructures
+local addExcludeSurface = MapUtils.addExcludedSurface
+local removeExcludeSurface = MapUtils.removeExcludedSurface
 
-local setPointAreaInQuery = queryUtils.setPointAreaInQuery
+local setPointAreaInQuery = Utils.setPointAreaInQuery
 
-local nextMap = mapUtils.nextMap
+local nextMap = MapUtils.nextMap
 
-local processClouds = mapProcessor.processClouds
+local processClouds = Processor.processClouds
 
-local distortPosition = mathUtils.distortPosition
-local linearInterpolation = mathUtils.linearInterpolation
-local gaussianRandomRangeRG = mathUtils.gaussianRandomRangeRG
-local prepMap = upgrade.prepMap
+local distortPosition = MathUtils.distortPosition
+local linearInterpolation = MathUtils.linearInterpolation
+local gaussianRandomRangeRG = MathUtils.gaussianRandomRangeRG
+local prepMap = MapUtils.prepMap
+local activateMap = MapUtils.activateMap
 
-local findBaseInitialAlignment = baseUtils.findBaseInitialAlignment
+local findBaseInitialAlignment = BaseUtils.findBaseInitialAlignment
 
-local processBaseAIs = aiPlanning.processBaseAIs
+local processBaseAIs = BaseUtils.processBaseAIs
 
-local registerEnemyBaseStructure = chunkUtils.registerEnemyBaseStructure
+local registerEnemyBaseStructure = ChunkUtils.registerEnemyBaseStructure
 
-local queueGeneratedChunk = mapUtils.queueGeneratedChunk
-local isRampantSetting = stringUtils.isRampantSetting
+local queueGeneratedChunk = MapUtils.queueGeneratedChunk
+local isRampantSetting = Utils.isRampantSetting
 
-local processPendingUpgrades = chunkProcessor.processPendingUpgrades
-local canMigrate = aiPredicates.canMigrate
+local processPendingUpgrades = Processor.processPendingUpgrades
+local canMigrate = BaseUtils.canMigrate
 
-local squadDispatch = squadAttack.squadDispatch
+local squadDispatch = Squad.squadDispatch
 
-local cleanUpMapTables = mapProcessor.cleanUpMapTables
+local cleanUpMapTables = Processor.cleanUpMapTables
 
-local positionToChunkXY = mapUtils.positionToChunkXY
+local positionToChunkXY = MapUtils.positionToChunkXY
 
-local processVengence = mapProcessor.processVengence
-local processAttackWaves = mapProcessor.processAttackWaves
+local processVengence = Processor.processVengence
+local processAttackWaves = Processor.processAttackWaves
 
-local disperseVictoryScent = pheromoneUtils.disperseVictoryScent
+local disperseVictoryScent = MapUtils.disperseVictoryScent
 
-local getChunkByPosition = mapUtils.getChunkByPosition
+local getChunkByPosition = MapUtils.getChunkByPosition
 
-local removeChunkFromMap = mapUtils.removeChunkFromMap
-local getChunkByXY = mapUtils.getChunkByXY
+local removeChunkFromMap = MapUtils.removeChunkFromMap
+local getChunkByXY = MapUtils.getChunkByXY
 
-local entityForPassScan = chunkUtils.entityForPassScan
+local entityForPassScan = ChunkUtils.entityForPassScan
 
-local processPendingChunks = chunkProcessor.processPendingChunks
-local processScanChunks = chunkProcessor.processScanChunks
+local processPendingChunks = Processor.processPendingChunks
+local processScanChunks = Processor.processScanChunks
 
-local processMap = mapProcessor.processMap
-local processPlayers = mapProcessor.processPlayers
-local scanEnemyMap = mapProcessor.scanEnemyMap
-local scanPlayerMap = mapProcessor.scanPlayerMap
-local scanResourceMap = mapProcessor.scanResourceMap
+local processMap = Processor.processMap
+local processPlayers = Processor.processPlayers
+local scanEnemyMap = Processor.scanEnemyMap
+local scanPlayerMap = Processor.scanPlayerMap
+local scanResourceMap = Processor.scanResourceMap
 
-local processNests = mapProcessor.processNests
+local processNests = Processor.processNests
 
-local rallyUnits = aiAttackWave.rallyUnits
+local rallyUnits = Squad.rallyUnits
 
-local recycleBases = baseUtils.recycleBases
+local recycleBases = BaseUtils.recycleBases
 
-local deathScent = pheromoneUtils.deathScent
-local victoryScent = pheromoneUtils.victoryScent
+local deathScent = MapUtils.deathScent
+local victoryScent = MapUtils.victoryScent
 
-local createSquad = unitGroupUtils.createSquad
+local createSquad = Squad.createSquad
 
-local createBase = baseUtils.createBase
-local findNearbyBaseByPosition = chunkPropertyUtils.findNearbyBaseByPosition
-local findNearbyBase = chunkPropertyUtils.findNearbyBase
+local createBase = BaseUtils.createBase
+local findNearbyBaseByPosition = ChunkPropertyUtils.findNearbyBaseByPosition
+local findNearbyBase = ChunkPropertyUtils.findNearbyBase
 
-local processActiveNests = mapProcessor.processActiveNests
+local removeDrainPylons = ChunkPropertyUtils.removeDrainPylons
+local getDrainPylonPair = ChunkPropertyUtils.getDrainPylonPair
 
-local removeDrainPylons = chunkPropertyUtils.removeDrainPylons
-local getDrainPylonPair = chunkPropertyUtils.getDrainPylonPair
+local createDrainPylon = UnitUtils.createDrainPylon
 
-local createDrainPylon = unitUtils.createDrainPylon
+local isDrained = ChunkPropertyUtils.isDrained
+local setDrainedTick = ChunkPropertyUtils.setDrainedTick
+local getCombinedDeathGeneratorRating = ChunkPropertyUtils.getCombinedDeathGeneratorRating
 
-local isDrained = chunkPropertyUtils.isDrained
-local setDrainedTick = chunkPropertyUtils.setDrainedTick
-local getCombinedDeathGeneratorRating = chunkPropertyUtils.getCombinedDeathGeneratorRating
+local retreatUnits = Squad.retreatUnits
 
-local retreatUnits = squadDefense.retreatUnits
+local accountPlayerEntity = ChunkUtils.accountPlayerEntity
+local unregisterEnemyBaseStructure = ChunkUtils.unregisterEnemyBaseStructure
+local makeImmortalEntity = ChunkUtils.makeImmortalEntity
 
-local accountPlayerEntity = chunkUtils.accountPlayerEntity
-local unregisterEnemyBaseStructure = chunkUtils.unregisterEnemyBaseStructure
-local makeImmortalEntity = chunkUtils.makeImmortalEntity
+local registerResource = ChunkUtils.registerResource
+local unregisterResource = ChunkUtils.unregisterResource
 
-local registerResource = chunkUtils.registerResource
-local unregisterResource = chunkUtils.unregisterResource
+local cleanSquads = Squad.cleanSquads
 
-local cleanSquads = squadAttack.cleanSquads
+local queueUpgrade = BaseUtils.queueUpgrade
 
-local queueUpgrade = baseUtils.queueUpgrade
-
-local modifyBaseUnitPoints = baseUtils.modifyBaseUnitPoints
+local modifyBaseUnitPoints = BaseUtils.modifyBaseUnitPoints
 
 local tRemove = table.remove
 
@@ -173,7 +165,7 @@ local mRandom = math.random
 
 -- local references to global
 
-local universe -- manages the chunks that make up the game universe
+local Universe -- manages the chunks that make up the game Universe
 
 -- hook functions
 
@@ -181,17 +173,17 @@ local function onIonCannonFired(event)
     --[[
         event.force, event.surface, event.player_index, event.position, event.radius
     --]]
-    local map = universe.maps[event.surface.index]
+    local map = Universe.maps[event.surface.index]
     if not map then
         return
     end
 
     local chunk = getChunkByPosition(map, event.position)
     if (chunk ~= -1) then
-        local base = findNearbyBase(map, chunk)
+        local base = findNearbyBase(chunk)
         if base then
             base.ionCannonBlasts = base.ionCannonBlasts + 1
-            rallyUnits(chunk, map, event.tick, base)
+            rallyUnits(chunk, event.tick)
             modifyBaseUnitPoints(base, 4000, "Ion Cannon")
         end
     end
@@ -200,7 +192,7 @@ end
 local function onAbandonedRuins(event)
     local entity = event.entity
     if entity.valid and (entity.force.name ~= "enemy") then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
@@ -219,8 +211,18 @@ local function hookEvents()
     end
 end
 
+local function initializeLibraries()
+    BaseUtils.init(Universe)
+    Squad.init(Universe)
+    BaseUtils.init(Universe)
+    Processor.init(Universe)
+    MapUtils.init(Universe)
+    ChunkPropertyUtils.init(Universe, MapUtils)
+    ChunkUtils.init(Universe)
+end
+
 local function onLoad()
-    universe = global.universe
+    Universe = global.universe
 
     hookEvents()
 end
@@ -229,7 +231,7 @@ local function onChunkGenerated(event)
     -- queue generated chunk for delayed processing, queuing is required because
     -- some mods (RSO) mess with chunk as they are generated, which messes up the
     -- scoring.
-    queueGeneratedChunk(universe, event)
+    queueGeneratedChunk(event)
 end
 
 local function onModSettingsChange(event)
@@ -238,77 +240,76 @@ local function onModSettingsChange(event)
         return
     end
 
-    universe.safeEntities["curved-rail"] = settings.global["rampant--safeBuildings-curvedRail"].value
-    universe.safeEntities["straight-rail"] = settings.global["rampant--safeBuildings-straightRail"].value
-    universe.safeEntities["rail-signal"] = settings.global["rampant--safeBuildings-railSignals"].value
-    universe.safeEntities["rail-chain-signal"] = settings.global["rampant--safeBuildings-railChainSignals"].value
-    universe.safeEntities["train-stop"] = settings.global["rampant--safeBuildings-trainStops"].value
-    universe.safeEntities["lamp"] = settings.global["rampant--safeBuildings-lamps"].value
+    Universe.safeEntities["curved-rail"] = settings.global["rampant--safeBuildings-curvedRail"].value
+    Universe.safeEntities["straight-rail"] = settings.global["rampant--safeBuildings-straightRail"].value
+    Universe.safeEntities["rail-signal"] = settings.global["rampant--safeBuildings-railSignals"].value
+    Universe.safeEntities["rail-chain-signal"] = settings.global["rampant--safeBuildings-railChainSignals"].value
+    Universe.safeEntities["train-stop"] = settings.global["rampant--safeBuildings-trainStops"].value
+    Universe.safeEntities["lamp"] = settings.global["rampant--safeBuildings-lamps"].value
 
-    universe.safeEntities["big-electric-pole"] = settings.global["rampant--safeBuildings-bigElectricPole"].value
+    Universe.safeEntities["big-electric-pole"] = settings.global["rampant--safeBuildings-bigElectricPole"].value
 
-    universe.safeEntities["big-electric-pole"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["big-electric-pole-2"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["big-electric-pole-3"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["big-electric-pole-4"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["lighted-big-electric-pole-4"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["lighted-big-electric-pole-3"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["lighted-big-electric-pole-2"] = universe.safeEntities["big-electric-pole"]
-    universe.safeEntities["lighted-big-electric-pole"] = universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["big-electric-pole"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["big-electric-pole-2"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["big-electric-pole-3"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["big-electric-pole-4"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["lighted-big-electric-pole-4"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["lighted-big-electric-pole-3"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["lighted-big-electric-pole-2"] = Universe.safeEntities["big-electric-pole"]
+    Universe.safeEntities["lighted-big-electric-pole"] = Universe.safeEntities["big-electric-pole"]
 
-    universe["temperamentRateModifier"] = settings.global["rampant--temperamentRateModifier"].value
-    universe["baseDistanceModifier"] = settings.global["rampant--baseDistanceModifier"].value
-    universe["printBaseAdaptation"] = settings.global["rampant--printBaseAdaptation"].value
-    universe["adaptationModifier"] = settings.global["rampant--adaptationModifier"].value
+    Universe["temperamentRateModifier"] = settings.global["rampant--temperamentRateModifier"].value
+    Universe["baseDistanceModifier"] = settings.global["rampant--baseDistanceModifier"].value
+    Universe["printBaseAdaptation"] = settings.global["rampant--printBaseAdaptation"].value
+    Universe["adaptationModifier"] = settings.global["rampant--adaptationModifier"].value
 
-    universe["raidAIToggle"] = settings.global["rampant--raidAIToggle"].value
-    universe["siegeAIToggle"] = settings.global["rampant--siegeAIToggle"].value
-    universe["attackPlayerThreshold"] = settings.global["rampant--attackPlayerThreshold"].value
-    universe["attackUsePlayer"] = settings.global["rampant--attackWaveGenerationUsePlayerProximity"].value
+    Universe["raidAIToggle"] = settings.global["rampant--raidAIToggle"].value
+    Universe["siegeAIToggle"] = settings.global["rampant--siegeAIToggle"].value
+    Universe["attackPlayerThreshold"] = settings.global["rampant--attackPlayerThreshold"].value
+    Universe["attackUsePlayer"] = settings.global["rampant--attackWaveGenerationUsePlayerProximity"].value
 
-    universe["attackWaveMaxSize"] = settings.global["rampant--attackWaveMaxSize"].value
-    universe["aiNocturnalMode"] = settings.global["rampant--permanentNocturnal"].value
-    universe["aiPointsScaler"] = settings.global["rampant--aiPointsScaler"].value
+    Universe["attackWaveMaxSize"] = settings.global["rampant--attackWaveMaxSize"].value
+    Universe["aiNocturnalMode"] = settings.global["rampant--permanentNocturnal"].value
+    Universe["aiPointsScaler"] = settings.global["rampant--aiPointsScaler"].value
 
-    universe["aiPointsPrintGainsToChat"] = settings.global["rampant--aiPointsPrintGainsToChat"].value
-    universe["aiPointsPrintSpendingToChat"] = settings.global["rampant--aiPointsPrintSpendingToChat"].value
-    universe["printBaseUpgrades"] = settings.global["rampant--printBaseUpgrades"].value
-    universe["PRINT_BASE_SETTLING"] = settings.global["rampant--printBaseSettling"].value
+    Universe["aiPointsPrintGainsToChat"] = settings.global["rampant--aiPointsPrintGainsToChat"].value
+    Universe["aiPointsPrintSpendingToChat"] = settings.global["rampant--aiPointsPrintSpendingToChat"].value
+    Universe["printBaseUpgrades"] = settings.global["rampant--printBaseUpgrades"].value
+    Universe["PRINT_BASE_SETTLING"] = settings.global["rampant--printBaseSettling"].value
 
-    universe["enabledMigration"] = universe.expansion and settings.global["rampant--enableMigration"].value
-    universe["peacefulAIToggle"] = settings.global["rampant--peacefulAIToggle"].value
-    universe["printAIStateChanges"] = settings.global["rampant--printAIStateChanges"].value
-    universe["debugTemperament"] = settings.global["rampant--debugTemperament"].value
+    Universe["enabledMigration"] = Universe.expansion and settings.global["rampant--enableMigration"].value
+    Universe["peacefulAIToggle"] = settings.global["rampant--peacefulAIToggle"].value
+    Universe["printAIStateChanges"] = settings.global["rampant--printAIStateChanges"].value
+    Universe["debugTemperament"] = settings.global["rampant--debugTemperament"].value
 
-    universe["enabledPurpleSettlerCloud"] = settings.global["rampant--enabledPurpleSettlerCloud"].value
+    Universe["enabledPurpleSettlerCloud"] = settings.global["rampant--enabledPurpleSettlerCloud"].value
 
-    universe["AI_MAX_SQUAD_COUNT"] = settings.global["rampant--maxNumberOfSquads"].value
-    universe["AI_MAX_BUILDER_COUNT"] = settings.global["rampant--maxNumberOfBuilders"].value
-    universe["AI_MAX_VANILLA_SQUAD_COUNT"] = universe["AI_MAX_SQUAD_COUNT"] * 0.65
-    universe["AI_MAX_VANILLA_BUILDER_COUNT"] = universe["AI_MAX_BUILDER_COUNT"] * 0.65
-    universe["MAX_BASE_MUTATIONS"] = settings.global["rampant--max-base-mutations"].value
+    Universe["AI_MAX_SQUAD_COUNT"] = settings.global["rampant--maxNumberOfSquads"].value
+    Universe["AI_MAX_BUILDER_COUNT"] = settings.global["rampant--maxNumberOfBuilders"].value
+    Universe["AI_MAX_VANILLA_SQUAD_COUNT"] = Universe["AI_MAX_SQUAD_COUNT"] * 0.65
+    Universe["AI_MAX_VANILLA_BUILDER_COUNT"] = Universe["AI_MAX_BUILDER_COUNT"] * 0.65
+    Universe["MAX_BASE_MUTATIONS"] = settings.global["rampant--max-base-mutations"].value
 
-    universe["initialPeaceTime"] = settings.global["rampant--initialPeaceTime"].value * TICKS_A_MINUTE
-    universe["printAwakenMessage"] = settings.global["rampant--printAwakenMessage"].value
+    Universe["MAX_BASE_ALIGNMENT_HISTORY"] = settings.global["rampant--maxBaseAlignmentHistory"].value
 
-    universe["minimumAdaptationEvolution"] = settings.global["rampant--minimumAdaptationEvolution"].value
+    Universe["initialPeaceTime"] = settings.global["rampant--initialPeaceTime"].value * TICKS_A_MINUTE
+    Universe["printAwakenMessage"] = settings.global["rampant--printAwakenMessage"].value
+
+    Universe["minimumAdaptationEvolution"] = settings.global["rampant--minimumAdaptationEvolution"].value
 
     return true
 end
 
 local function onConfigChanged()
-    local version = upgrade.attempt(universe)
-    if version then
-        if not universe then
-            universe = global.universe
-        end
-    end
+    Upgrade.init(Universe)
+    game.print("Rampant - Version 3.2.0")
+    Upgrade.addUniverseProperties()
+    initializeLibraries()
+    Upgrade.attempt()
 
     onModSettingsChange({setting="rampant--"})
 
-    universe["ENEMY_SEED"] = settings.startup["rampant--enemySeed"].value
-    universe["ENEMY_VARIATIONS"] = settings.startup["rampant--newEnemyVariations"].value
-    universe["NEW_ENEMIES"] = settings.startup["rampant--newEnemies"].value
+    Universe["NEW_ENEMIES"] = settings.startup["rampant--newEnemies"].value
 
     -- not a completed implementation needs if checks to use all forces
     -- both in the data stage, commands, and if then logic
@@ -324,21 +325,17 @@ local function onConfigChanged()
         npcForces["AbandonedRuins:enemy"] = true
     end
 
-    upgrade.setCommandForces(universe, npcForces, enemyForces)
+    Upgrade.setCommandForces(npcForces, enemyForces)
 
-    if not universe.maps then
-        universe.maps = {}
-    end
     for _,surface in pairs(game.surfaces) do
-        if not universe.maps[surface.index] then
-            prepMap(universe, surface)
+        if not Universe.maps[surface.index] then
+            prepMap(surface)
         end
     end
-    addBasesToAllEnemyStructures(universe, game.tick)
 
-    if not universe.ranIncompatibleMessage and universe.newEnemies and
+    if not Universe.ranIncompatibleMessage and Universe.newEnemies and
         (game.active_mods["bobenemies"] or game.active_mods["Natural_Evolution_Enemies"]) then
-        universe.ranIncompatibleMessage = true
+        Universe.ranIncompatibleMessage = true
         game.print({"description.rampant-bobs-nee-newEnemies"})
     end
 end
@@ -346,23 +343,23 @@ end
 local function onEnemyBaseBuild(event)
     local entity = event.entity or event.created_entity
     if entity.valid then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
-        map.activeSurface = true
+        activateMap(map)
         local chunk = getChunkByPosition(map, entity.position)
         if (chunk ~= -1) then
-            local base = findNearbyBase(map, chunk)
+            local base = findNearbyBase(chunk)
             if not base then
                 base = createBase(map,
                                   chunk,
                                   event.tick)
             end
 
-            registerEnemyBaseStructure(map, entity, base)
+            registerEnemyBaseStructure(entity, base, event.tick)
 
-            if universe.NEW_ENEMIES then
+            if Universe.NEW_ENEMIES then
                 queueUpgrade(entity,
                              base,
                              nil,
@@ -392,7 +389,7 @@ local function onBuild(event)
         if entityForceName == "enemy" and BUILDING_HIVE_TYPE_LOOKUP[entity.name] then
             onEnemyBaseBuild(event)
         else
-            local map = universe.maps[entity.surface.index]
+            local map = Universe.maps[entity.surface.index]
             if not map then
                 return
             end
@@ -400,7 +397,7 @@ local function onBuild(event)
                 registerResource(entity, map)
             else
                 accountPlayerEntity(entity, map, true)
-                if universe.safeEntities[entity.type] or universe.safeEntities[entity.name] then
+                if Universe.safeEntities[entity.type] or Universe.safeEntities[entity.name] then
                     entity.destructible = false
                 end
             end
@@ -411,7 +408,7 @@ end
 local function onMine(event)
     local entity = event.entity
     if entity.valid then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
@@ -425,7 +422,7 @@ local function onDeath(event)
         return
     end
     local surface = entity.surface
-    local map = universe.maps[surface.index]
+    local map = Universe.maps[surface.index]
     if not map then
         return
     end
@@ -455,7 +452,7 @@ local function onDeath(event)
         else
             local group = entity.unit_group
             if group then
-                local squad = universe.groupNumberToSquad[group.group_number]
+                local squad = Universe.groupNumberToSquad[group.group_number]
                 if damageTypeName and squad then
                     base = squad.base
                 end
@@ -464,12 +461,12 @@ local function onDeath(event)
 
         if (chunk ~= -1) then
             if not base then
-                base = findNearbyBase(map, chunk)
+                base = findNearbyBase(chunk)
             end
 
             local artilleryBlast = (cause and ((cause.type == "artillery-wagon") or (cause.type == "artillery-turret")))
             if (entityType == "unit") and not ENTITY_SKIP_COUNT_LOOKUP[entity.name] then
-                deathScent(map, chunk)
+                deathScent(chunk)
                 if base then
                     base.lostEnemyUnits = base.lostEnemyUnits + 1
                     if damageTypeName then
@@ -479,15 +476,15 @@ local function onDeath(event)
                     if base.lostEnemyUnits % 20 == 0 then
                         modifyBaseUnitPoints(base, -(20*UNIT_DEATH_POINT_COST), "20 Units Lost")
                     end
-                    if (universe.random() < universe.rallyThreshold) and not surface.peaceful_mode then
-                        rallyUnits(chunk, map, tick, base)
+                    if (Universe.random() < Universe.rallyThreshold) and not surface.peaceful_mode then
+                        rallyUnits(chunk, tick)
                     end
                     if artilleryBlast then
                         base.artilleryBlasts = base.artilleryBlasts + 1
                     end
                 end
 
-                if (getCombinedDeathGeneratorRating(map, chunk) < universe.retreatThreshold) and cause and cause.valid then
+                if (getCombinedDeathGeneratorRating(chunk) < Universe.retreatThreshold) and cause and cause.valid then
                     retreatUnits(chunk,
                                  cause,
                                  map,
@@ -498,14 +495,14 @@ local function onDeath(event)
                 (entityType == "unit-spawner") or
                 (entityType == "turret")
             then
-                deathScent(map, chunk, true)
+                deathScent(chunk, true)
                 if base then
                     if (entityType == "unit-spawner") then
                         modifyBaseUnitPoints(base, RECOVER_NEST_COST, "Nest Lost")
                     elseif (entityType == "turret") then
                         modifyBaseUnitPoints(base, RECOVER_WORM_COST, "Worm Lost")
                     end
-                    rallyUnits(chunk, map, tick, base)
+                    rallyUnits(chunk, tick)
                     if artilleryBlast then
                         base.artilleryBlasts = base.artilleryBlasts + 1
                     end
@@ -526,19 +523,19 @@ local function onDeath(event)
             creditNatives = true
             local drained = false
             if chunk ~= -1 then
-                victoryScent(map, chunk, entityType)
-                drained = (entityType == "electric-turret") and isDrained(map, chunk, tick)
+                victoryScent(chunk, entityType)
+                drained = (entityType == "electric-turret") and isDrained(chunk, tick)
                 if cause and cause.type == "unit" then
                     local group = cause.unit_group
                     if group and group.valid then
-                        local squad = universe.groupNumberToSquad[group.group_number]
+                        local squad = Universe.groupNumberToSquad[group.group_number]
                         if squad then
                             base = squad.base
                         end
                     end
                 end
                 if not base then
-                    base = findNearbyBase(map, chunk)
+                    base = findNearbyBase(chunk)
                 end
             end
 
@@ -546,7 +543,7 @@ local function onDeath(event)
                 createDrainPylon(map, cause, entity, entityType)
             end
         end
-        if creditNatives and (universe.safeEntities[entityType] or universe.safeEntities[entity.name])
+        if creditNatives and (Universe.safeEntities[entityType] or Universe.safeEntities[entity.name])
         then
             makeImmortalEntity(surface, entity)
         else
@@ -559,12 +556,7 @@ local function processSurfaceTile(map, position, chunks, tick)
     local chunk = getChunkByPosition(map, position)
 
     if (chunk ~= -1) then
-        if not map.universe.chunkToPassScan[chunk.id] then
-            map.universe.chunkToPassScan[chunk.id] = {
-                map=map,
-                chunk=chunk
-            }
-        end
+        Universe.chunkToPassScan[chunk.id] = chunk
     else
         local x,y = positionToChunkXY(position)
         local addMe = true
@@ -591,7 +583,7 @@ end
 
 local function onSurfaceTileChange(event)
     local surfaceIndex = event.surface_index or (event.robot and event.robot.surface and event.robot.surface.index)
-    local map = universe.maps[surfaceIndex]
+    local map = Universe.maps[surfaceIndex]
     if not map then
         return
     end
@@ -616,7 +608,7 @@ end
 local function onResourceDepleted(event)
     local entity = event.entity
     if entity.valid then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
@@ -627,7 +619,7 @@ end
 local function onRobotCliff(event)
     local entity = event.robot
     if entity.valid then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
@@ -639,13 +631,13 @@ end
 
 local function onUsedCapsule(event)
     local surface = game.players[event.player_index].surface
-    local map = universe.maps[surface.index]
+    local map = Universe.maps[surface.index]
     if not map then
         return
     end
     if (event.item.name == "cliff-explosives") then
-        setPointAreaInQuery(universe.oucCliffQuery, event.position, 0.75)
-        local cliffs = surface.find_entities_filtered(universe.oucCliffQuery)
+        setPointAreaInQuery(Universe.oucCliffQuery, event.position, 0.75)
+        local cliffs = surface.find_entities_filtered(Universe.oucCliffQuery)
         for i=1,#cliffs do
             entityForPassScan(map, cliffs[i])
         end
@@ -655,13 +647,13 @@ end
 local function onRocketLaunch(event)
     local entity = event.rocket_silo or event.rocket
     if entity.valid then
-        local map = universe.maps[entity.surface.index]
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
         local chunk = getChunkByPosition(map, entity.position)
         if (chunk ~= -1) then
-            local base = findNearbyBase(map, chunk)
+            local base = findNearbyBase(chunk)
             if base then
                 base.rocketLaunched = base.rocketLaunched + 1
                 modifyBaseUnitPoints(base, 5000, "Rocket Launch")
@@ -671,25 +663,25 @@ local function onRocketLaunch(event)
 end
 
 local function onEntitySpawned(entity, tick)
-    if universe.NEW_ENEMIES and entity.valid then
-        local map = universe.maps[entity.surface.index]
+    if Universe.NEW_ENEMIES and entity.valid then
+        local map = Universe.maps[entity.surface.index]
         if not map then
             return
         end
         if BUILDING_HIVE_TYPE_LOOKUP[entity.name] then
-            map.activeSurface = true
-            local disPos = distortPosition(universe.random, entity.position, 8)
+            activateMap(map)
+            local disPos = distortPosition(Universe.random, entity.position, 8)
 
             local chunk = getChunkByPosition(map, disPos)
             if (chunk ~= -1) then
-                local base = findNearbyBase(map, chunk)
+                local base = findNearbyBase(chunk)
                 if not base then
                     base = createBase(map,
                                       chunk,
                                       tick)
                 end
 
-                local meanTTL = linearInterpolation(universe.evolutionLevel, MAX_HIVE_TTL, MIN_HIVE_TTL)
+                local meanTTL = linearInterpolation(Universe.evolutionLevel, MAX_HIVE_TTL, MIN_HIVE_TTL)
 
                 queueUpgrade(entity,
                              base,
@@ -700,7 +692,7 @@ local function onEntitySpawned(entity, tick)
                                                           DEV_HIVE_TTL,
                                                           MIN_HIVE_TTL,
                                                           MAX_HIVE_TTL,
-                                                          universe.random))
+                                                          Universe.random))
             else
                 local x,y = positionToChunkXY(entity.position)
                 onChunkGenerated({
@@ -725,26 +717,26 @@ local function onTriggerEntityCreated(event)
     elseif (event.effect_id == "rampant-drain-trigger") then
         local entity = event.target_entity
         if (entity and entity.valid) then
-            local map = universe.maps[event.surface_index]
+            local map = Universe.maps[event.surface_index]
             if not map then
                 return
             end
             local chunk = getChunkByPosition(map, entity.position)
             if (chunk ~= -1) then
-                setDrainedTick(map, chunk, event.tick)
+                setDrainedTick(chunk, event.tick)
             end
         elseif (event.target_position) then
-            local map = universe.maps[event.surface_index]
+            local map = Universe.maps[event.surface_index]
             if not map then
                 return
             end
             local chunk = getChunkByPosition(map, event.target_position)
             if (chunk ~= -1) then
-                setDrainedTick(map, chunk, event.tick)
+                setDrainedTick(chunk, event.tick)
             end
         end
     elseif (event.effect_id == "deathLandfillParticle--rampant") then
-        local map = universe.maps[event.surface_index]
+        local map = Universe.maps[event.surface_index]
         if not map then
             return
         end
@@ -760,7 +752,7 @@ end
 local function onInit()
     global.universe = {}
 
-    universe = global.universe
+    Universe = global.universe
 
     hookEvents()
     onConfigChanged()
@@ -776,29 +768,29 @@ local function onUnitGroupCreated(event)
     if group.is_script_driven then
         return
     end
-    local map = universe.maps[surface.index]
+    local map = Universe.maps[surface.index]
     if not map then
         return
     end
-    map.activeSurface = true
+    activateMap(map)
     local position = group.position
     local chunk = getChunkByPosition(map, position)
     local base
     if (chunk == -1) then
         base = findNearbyBaseByPosition(map, position.x, position.y)
     else
-        base = findNearbyBase(map, chunk)
+        base = findNearbyBase(chunk)
     end
     if not base then
         group.destroy()
         return
     end
-    if not universe.aiNocturnalMode then
-        local settler = canMigrate(map, base) and
-            (universe.builderCount < universe.AI_MAX_VANILLA_BUILDER_COUNT) and
-            (universe.random() < 0.25)
+    if not Universe.aiNocturnalMode then
+        local settler = canMigrate(base) and
+            (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
+            (Universe.random() < 0.25)
 
-        if not settler and ( (universe.squadCount >= universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
+        if not settler and ( (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
             group.destroy()
             return
         end
@@ -809,14 +801,12 @@ local function onUnitGroupCreated(event)
         end
 
         squad = createSquad(nil, map, group, settler, base)
-        universe.groupNumberToSquad[group.group_number] = squad
-
-        squad.base = base
+        Universe.groupNumberToSquad[group.group_number] = squad
 
         if settler then
-            universe.builderCount = universe.builderCount + 1
+            Universe.builderCount = Universe.builderCount + 1
         else
-            universe.squadCount = universe.squadCount + 1
+            Universe.squadCount = Universe.squadCount + 1
         end
     else
         if not (surface.darkness > 0.65) then
@@ -824,11 +814,11 @@ local function onUnitGroupCreated(event)
             return
         end
 
-        local settler = canMigrate(map, base) and
-            (universe.builderCount < universe.AI_MAX_VANILLA_BUILDER_COUNT) and
-            (universe.random() < 0.25)
+        local settler = canMigrate(base) and
+            (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
+            (Universe.random() < 0.25)
 
-        if not settler and ( (universe.squadCount >= universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
+        if not settler and ( (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
             group.destroy()
             return
         end
@@ -839,14 +829,12 @@ local function onUnitGroupCreated(event)
         end
 
         squad = createSquad(nil, map, group, settler, base)
-        universe.groupNumberToSquad[group.group_number] = squad
-
-        squad.base = base
+        Universe.groupNumberToSquad[group.group_number] = squad
 
         if settler then
-            universe.builderCount = universe.builderCount + 1
+            Universe.builderCount = Universe.builderCount + 1
         else
-            universe.squadCount = universe.squadCount + 1
+            Universe.squadCount = Universe.squadCount + 1
         end
     end
 end
@@ -856,15 +844,15 @@ local function onGroupFinishedGathering(event)
     if not group.valid or (group.force.name ~= "enemy") then
         return
     end
-    local map = universe.maps[group.surface.index]
+    local map = Universe.maps[group.surface.index]
     if not map then
         return
     end
-    map.activeSurface = true
-    local squad = universe.groupNumberToSquad[group.group_number]
+    activateMap(map)
+    local squad = Universe.groupNumberToSquad[group.group_number]
     if squad then
         if squad.settler then
-            if (universe.builderCount <= universe.AI_MAX_BUILDER_COUNT) then
+            if (Universe.builderCount <= Universe.AI_MAX_BUILDER_COUNT) then
                 squadDispatch(map, squad, event.tick)
             else
                 group.destroy()
@@ -876,7 +864,7 @@ local function onGroupFinishedGathering(event)
                 return
             end
 
-            if (universe.squadCount <= universe.AI_MAX_SQUAD_COUNT) then
+            if (Universe.squadCount <= Universe.AI_MAX_SQUAD_COUNT) then
                 squadDispatch(map, squad, event.tick)
             else
                 group.destroy()
@@ -889,17 +877,17 @@ local function onGroupFinishedGathering(event)
         if chunk == -1 then
             base = findNearbyBaseByPosition(map, position.x, position.y)
         else
-            base = findNearbyBase(map, chunk)
+            base = findNearbyBase(chunk)
         end
         if not base then
             group.destroy()
             return
         end
-        local settler = canMigrate(map, base) and
-            (universe.builderCount < universe.AI_MAX_VANILLA_BUILDER_COUNT) and
-            (universe.random() < 0.25)
+        local settler = canMigrate(base) and
+            (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
+            (Universe.random() < 0.25)
 
-        if not settler and (universe.squadCount >= universe.AI_MAX_VANILLA_SQUAD_COUNT) then
+        if not settler and (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) then
             group.destroy()
             return
         end
@@ -910,44 +898,47 @@ local function onGroupFinishedGathering(event)
         end
 
         squad = createSquad(nil, map, group, settler, base)
-        universe.groupNumberToSquad[group.group_number] = squad
+        Universe.groupNumberToSquad[group.group_number] = squad
         if settler then
-            universe.builderCount = universe.builderCount + 1
+            Universe.builderCount = Universe.builderCount + 1
         else
-            universe.squadCount = universe.squadCount + 1
+            Universe.squadCount = Universe.squadCount + 1
         end
         squadDispatch(map, squad, event.tick)
     end
 end
 
 local function onForceCreated(event)
-    if universe.playerForces then
-        universe.playerForces[#universe.playerForces+1] = event.force.name
+    if Universe.playerForces then
+        Universe.playerForces[#Universe.playerForces+1] = event.force.name
     end
 end
 
 local function onForceMerged(event)
-    for i=#universe.playerForces,1,-1 do
-        if (universe.playerForces[i] == event.source_name) then
-            tRemove(universe.playerForces, i)
+    for i=#Universe.playerForces,1,-1 do
+        if (Universe.playerForces[i] == event.source_name) then
+            tRemove(Universe.playerForces, i)
             break
         end
     end
 end
 
 local function onSurfaceCreated(event)
-    prepMap(universe, game.surfaces[event.surface_index])
+    prepMap(game.surfaces[event.surface_index])
 end
 
 local function onSurfaceDeleted(event)
     local surfaceIndex = event.surface_index
-    if (universe.mapIterator == surfaceIndex) then
-        universe.mapIterator, universe.activeMap = next(universe.maps, universe.mapIterator)
+    if (Universe.mapIterator == surfaceIndex) then
+        Universe.mapIterator, Universe.currentMap = next(
+            Universe.activeMaps,
+            Universe.mapIterator
+        )
     end
-    if (universe.processMapAIIterator == surfaceIndex) then
-        universe.processMapAIIterator = nil
+    if (Universe.processMapAIIterator == surfaceIndex) then
+        Universe.processMapAIIterator = nil
     end
-    universe.maps[surfaceIndex] = nil
+    Universe.maps[surfaceIndex] = nil
 end
 
 local function onSurfaceCleared(event)
@@ -957,7 +948,7 @@ end
 
 local function onChunkDeleted(event)
     local surfaceIndex = event.surface_index
-    local map = universe.maps[surfaceIndex]
+    local map = Universe.maps[surfaceIndex]
     if map then
         local positions = event.positions
         for i=1,#positions do
@@ -985,24 +976,22 @@ local function onBuilderArrived(event)
         return
     end
 
-    local map = universe.maps[builder.surface.index]
+    local map = Universe.maps[builder.surface.index]
     if not map then
         return
     end
-    map.activeSurface = true
+    activateMap(map)
     if not usingUnit then
-        local squad = universe.groupNumberToSquad[builder.group_number]
+        local squad = Universe.groupNumberToSquad[builder.group_number]
         squad.commandTick = event.tick + COMMAND_TIMEOUT * 10
     end
-    if universe.PRINT_BASE_SETTLING then
+    if Universe.PRINT_BASE_SETTLING then
         game.print(map.surface.name.." Settled: [gps=" .. builder.position.x .. "," .. builder.position.y .."]")
     end
-    if universe.enabledPurpleSettlerCloud then
-        local len = universe.settlePurpleCloud.len + 1
-        universe.settlePurpleCloud.len = len
-        universe.settlePurpleCloud[len] = {
+    if Universe.enabledPurpleSettlerCloud then
+        Universe.eventId = Universe.eventId + 1
+        Universe.settlePurpleCloud[Universe.eventId] = {
             map = map,
-            position = builder.position,
             group = builder,
             tick = event.tick + SETTLE_CLOUD_WARMUP
         }
@@ -1018,31 +1007,25 @@ script.on_event(defines.events.on_tick,
                     local pick = tick % 8
                     -- local profiler = game.create_profiler()
 
-                    local map = universe.activeMap
-                    if (not map) or (universe.processedChunks > (#map.processQueue * 0.05)) then
-                        universe.processedChunks = 0
-                        map = nextMap(universe)
-                        universe.activeMap = map
-                    end
+                    local map = nextMap()
 
                     if (pick == 0) then
-                        processPendingChunks(universe, tick)
+                        processPendingChunks(tick)
                         if map then
-                            recycleBases(universe)
+                            recycleBases()
                         end
-                        cleanUpMapTables(universe, tick)
+                        cleanUpMapTables(tick)
                     elseif (pick == 1) then
-                        processPlayers(gameRef.connected_players, universe, tick)
+                        processPlayers(gameRef.connected_players, tick)
                     elseif (pick == 2) then
-                        processVengence(universe)
+                        processVengence()
                     elseif (pick == 3) then
-                        disperseVictoryScent(universe)
-                        processAttackWaves(universe)
-                        processNests(universe, tick)
-                        processClouds(universe, tick)
+                        disperseVictoryScent()
+                        processAttackWaves()
+                        processClouds(tick)
                     elseif (pick == 4) then
                         if map then
-                            scanResourceMap(map, tick)
+                            scanResourceMap(map)
                             scanEnemyMap(map, tick)
                         end
                     elseif (pick == 5) then
@@ -1051,23 +1034,23 @@ script.on_event(defines.events.on_tick,
                         end
                     elseif (pick == 6) then
                         if map then
-                            scanPlayerMap(map, tick)
+                            scanPlayerMap(map)
                         end
                     elseif (pick == 7) then
-                        processPendingChunks(universe, tick)
-                        processScanChunks(universe)
-                        planning(universe, gameRef.forces.enemy.evolution_factor)
+                        processPendingChunks(tick)
+                        processScanChunks()
+                        planning(gameRef.forces.enemy.evolution_factor)
                     end
 
                     if map then
                         processMap(map, tick)
                     end
 
-                    processBaseAIs(universe, tick)
-                    processActiveNests(universe, tick)
-                    processPendingUpgrades(universe, tick)
-                    processPendingUpgrades(universe, tick)
-                    cleanSquads(universe, tick)
+                    processBaseAIs(tick)
+                    processNests(tick)
+                    processPendingUpgrades(tick)
+                    processPendingUpgrades(tick)
+                    cleanSquads(tick)
 
                     -- game.print({"", "--dispatch4 ", profiler, " , ", pick," , ",math.random()})
 end)
@@ -1117,63 +1100,27 @@ script.on_event(defines.events.on_build_base_arrived, onBuilderArrived)
 
 remote.add_interface("rampantTests",
                      {
-                         pheromoneLevels = tests.pheromoneLevels,
-                         activeSquads = tests.activeSquads,
-                         entitiesOnPlayerChunk = tests.entitiesOnPlayerChunk,
-                         findNearestPlayerEnemy = tests.findNearestPlayerEnemy,
-                         morePoints = tests.morePoints,
-                         aiStats = tests.aiStats,
                          dumpEnvironment = tests.dumpEnvironment,
-                         fillableDirtTest = tests.fillableDirtTest,
-                         tunnelTest = tests.tunnelTest,
-                         dumpNatives = tests.dumpatives,
-                         createEnemy = tests.createEnemy,
-                         attackOrigin = tests.attackOrigin,
-                         cheatMode = tests.cheatMode,
-                         gaussianRandomTest = tests.gaussianRandomTest,
+                         -- fillableDirtTest = tests.fillableDirtTest,
+                         -- tunnelTest = tests.tunnelTest,
                          reveal = tests.reveal,
-                         showMovementGrid = tests.showMovementGrid,
-                         showBaseGrid = tests.showBaseGrid,
-                         baseStats = tests.baseStats,
-                         mergeBases = tests.mergeBases,
-                         clearBases = tests.clearBases,
-                         getOffsetChunk = tests.getOffsetChunk,
-                         registeredNest = tests.registeredNest,
-                         colorResourcePoints = tests.colorResourcePoints,
-                         entityStats = tests.entityStats,
-                         stepAdvanceTendrils = tests.stepAdvanceTendrils,
-                         unitGroupBuild = tests.unitGroupBuild,
+                         -- showMovementGrid = tests.showMovementGrid,
+                         -- showBaseGrid = tests.showBaseGrid,
+                         -- colorResourcePoints = tests.colorResourcePoints,
                          exportAiState = tests.exportAiState(nil),
-                         createEnergyTest = tests.createEnergyTest,
-                         killActiveSquads = tests.killActiveSquads,
-                         scanChunkPaths = tests.scanChunkPaths,
                          scanEnemy = tests.scanEnemy,
-                         getEnemyStructureCount = tests.getEnemyStructureCount,
                          chunkCount = tests.chunkCount
                      }
 )
 
-local function addExcludeSurface(surfaceName)
-    universe.excludedSurfaces[surfaceName] = true
-    upgrade.excludeSurface(universe)
-end
-
-local function removeExcludeSurface(surfaceName)
-    universe.excludedSurfaces[surfaceName] = nil
-    local surface = game.get_surface(surfaceName)
-    if surface then
-        prepMap(universe, surface)
-    end
-end
-
 local function removeNewEnemies()
     game.print({"description.rampant--removeNewEnemies"})
-    universe.NEW_ENEMIES = false
-    for _,map in pairs(universe.maps) do
+    Universe.NEW_ENEMIES = false
+    for _,map in pairs(Universe.maps) do
         local surface = map.surface
         if surface.valid then
             local entities = surface.find_entities_filtered({
-                    force=universe.enemyForces,
+                    force=Universe.enemyForces,
                     type={
                         "turret",
                         "unit-spawner"
@@ -1194,11 +1141,11 @@ local function removeNewEnemies()
                             newEntityName = "spitter-spawner"
                         end
                     elseif entityType == "turret" then
-                        if universe.evolutionLevel >= 0.9 then
+                        if Universe.evolutionLevel >= 0.9 then
                             newEntityName = "behemoth-worm-turret"
-                        elseif universe.evolutionLevel >= 0.5 then
+                        elseif Universe.evolutionLevel >= 0.5 then
                             newEntityName = "big-worm-turret"
-                        elseif universe.evolutionLevel >= 0.3 then
+                        elseif Universe.evolutionLevel >= 0.3 then
                             newEntityName = "medium-worm-turret"
                         else
                             newEntityName = "small-worm-turret"
@@ -1210,13 +1157,14 @@ local function removeNewEnemies()
                     })
                     local chunk = getChunkByPosition(map, position)
                     if chunk ~= -1 then
-                        local base = findNearbyBase(map, chunk)
+                        local tick = game.tick
+                        local base = findNearbyBase(chunk)
                         if not base then
                             base = createBase(map,
                                               chunk,
-                                              game.tick)
+                                              tick)
                         end
-                        registerEnemyBaseStructure(map, newEntity, base)
+                        registerEnemyBaseStructure(newEntity, base, tick)
                     end
                 end
             end
@@ -1256,19 +1204,19 @@ local function removeFaction(cmd)
     end
     game.print({"description.rampant--removeFaction", localizedFactionNames})
 
-    for _,base in pairs(universe.bases) do
+    for _,base in pairs(Universe.bases) do
         if isMember(base.alignment[1], factionNames) then
-            base.alignment = findBaseInitialAlignment(universe, universe.evolutionLevel, factionNames)
+            base.alignment = findBaseInitialAlignment(Universe.evolutionLevel, factionNames)
         elseif isMember(base.alignment[2], factionNames) then
-            base.alignment = findBaseInitialAlignment(universe, universe.evolutionLevel, factionNames)
+            base.alignment = findBaseInitialAlignment(Universe.evolutionLevel, factionNames)
         end
     end
 
-    for _,map in pairs(universe.maps) do
+    for _,map in pairs(Universe.maps) do
         local surface = map.surface
         if surface.valid then
             local entities = surface.find_entities_filtered({
-                    force=universe.enemyForces,
+                    force=Universe.enemyForces,
                     type={
                         "turret",
                         "unit-spawner"
@@ -1289,11 +1237,11 @@ local function removeFaction(cmd)
                             newEntityName = "spitter-spawner"
                         end
                     elseif entityType == "turret" then
-                        if universe.evolutionLevel >= 0.9 then
+                        if Universe.evolutionLevel >= 0.9 then
                             newEntityName = "behemoth-worm-turret"
-                        elseif universe.evolutionLevel >= 0.5 then
+                        elseif Universe.evolutionLevel >= 0.5 then
                             newEntityName = "big-worm-turret"
-                        elseif universe.evolutionLevel >= 0.3 then
+                        elseif Universe.evolutionLevel >= 0.3 then
                             newEntityName = "medium-worm-turret"
                         else
                             newEntityName = "small-worm-turret"
@@ -1305,13 +1253,14 @@ local function removeFaction(cmd)
                     })
                     local chunk = getChunkByPosition(map, position)
                     if chunk ~= -1 then
-                        local base = findNearbyBase(map, chunk)
+                        local tick = game.tick
+                        local base = findNearbyBase(chunk)
                         if not base then
                             base = createBase(map,
                                               chunk,
-                                              game.tick)
+                                              tick)
                         end
-                        registerEnemyBaseStructure(map, newEntity, base)
+                        registerEnemyBaseStructure(newEntity, base, tick)
                     end
                 end
             end
@@ -1342,29 +1291,31 @@ local function rampantSetAIState(event)
             end
         end
 
-        if target ~= constants.BASE_AI_STATE_PEACEFUL and
-            target ~= constants.BASE_AI_STATE_AGGRESSIVE and
-            target ~= constants.BASE_AI_STATE_RAIDING and
-            target ~= constants.BASE_AI_STATE_MIGRATING and
-            target ~= constants.BASE_AI_STATE_SIEGE and
-            target ~= constants.BASE_AI_STATE_ONSLAUGHT
-        then
+        if not target or not Constants.STATE_ENGLISH[target] then
             game.print(target .. " is not a valid state. /rampantSetAIState <stateId> <baseId>")
-            return
         else
-            local base = universe.bases[baseId]
+            if not baseId then
+                game.print("Invalid baseId. /rampantSetAIState <stateId> <baseId>")
+                return
+            end
+            local base = Universe.bases[baseId]
             if not base then
                 game.print(baseId .. " is not a valid base. /rampantSetAIState <stateId> <baseId>")
                 return
             end
+            local previousState = base.stateAI
             base.stateAI = target
             local surface = base.map.surface
             if not surface.valid then
                 game.print("Base is invalid because surface is invalid")
                 return
             end
-            game.print("id:" .. baseId .. " on surface:" .. surface.name .. " is now in " .. constants.stateEnglish[base.stateAI])
+            game.print("id:" .. baseId .. " on surface:" .. surface.name
+                       .. " was in " .. Constants.STATE_ENGLISH[previousState]
+                       .. " is now in " .. Constants.STATE_ENGLISH[base.stateAI])
         end
+    else
+        game.print("Missing parameters: /rampantSetAIState <stateId> <baseId>")
     end
 end
 

@@ -14,101 +14,101 @@
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-if chunkUtilsG then
-    return chunkUtilsG
+if ChunkUtilsG then
+    return ChunkUtilsG
 end
-local chunkUtils = {}
+local ChunkUtils = {}
+
+--
+
+local Universe
+local ChunkOverlapArray
 
 -- imports
 
-local baseUtils = require("BaseUtils")
-local constants = require("Constants")
-local mapUtils = require("MapUtils")
-local chunkPropertyUtils = require("ChunkPropertyUtils")
-local mathUtils = require("MathUtils")
-local queryUtils = require("QueryUtils")
+local BaseUtils = require("BaseUtils")
+local Constants = require("Constants")
+local MapUtils = require("MapUtils")
+local ChunkPropertyUtils = require("ChunkPropertyUtils")
+local MathUtils = require("MathUtils")
+local Utils = require("Utils")
 
--- constants
+-- Constants
 
-local VANILLA_ENTITY_TYPE_LOOKUP = constants.VANILLA_ENTITY_TYPE_LOOKUP
-local BUILDING_HIVE_TYPE_LOOKUP = constants.BUILDING_HIVE_TYPE_LOOKUP
-local HIVE_BUILDINGS_TYPES = constants.HIVE_BUILDINGS_TYPES
+local VANILLA_ENTITY_TYPE_LOOKUP = Constants.VANILLA_ENTITY_TYPE_LOOKUP
+local BUILDING_HIVE_TYPE_LOOKUP = Constants.BUILDING_HIVE_TYPE_LOOKUP
 
 local DEFINES_WIRE_TYPE_RED = defines.wire_type.red
 local DEFINES_WIRE_TYPE_GREEN = defines.wire_type.green
 
-local BASE_AI_STATE_ONSLAUGHT = constants.BASE_AI_STATE_ONSLAUGHT
+local BASE_AI_STATE_ONSLAUGHT = Constants.BASE_AI_STATE_ONSLAUGHT
 
-local BASE_PHEROMONE = constants.BASE_PHEROMONE
-local PLAYER_PHEROMONE = constants.PLAYER_PHEROMONE
-local RESOURCE_PHEROMONE = constants.RESOURCE_PHEROMONE
-local ENEMY_PHEROMONE = constants.ENEMY_PHEROMONE
-local BUILDING_PHEROMONES = constants.BUILDING_PHEROMONES
+local BASE_PHEROMONE = Constants.BASE_PHEROMONE
+local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
+local RESOURCE_PHEROMONE = Constants.RESOURCE_PHEROMONE
+local ENEMY_PHEROMONE = Constants.ENEMY_PHEROMONE
+local BUILDING_PHEROMONES = Constants.BUILDING_PHEROMONES
 
-local CHUNK_SIZE = constants.CHUNK_SIZE
-local CHUNK_SIZE_DIVIDER = constants.CHUNK_SIZE_DIVIDER
+local CHUNK_SIZE = Constants.CHUNK_SIZE
+local CHUNK_SIZE_DIVIDER = Constants.CHUNK_SIZE_DIVIDER
 
-local CHUNK_NORTH_SOUTH = constants.CHUNK_NORTH_SOUTH
-local CHUNK_EAST_WEST = constants.CHUNK_EAST_WEST
+local CHUNK_NORTH_SOUTH = Constants.CHUNK_NORTH_SOUTH
+local CHUNK_EAST_WEST = Constants.CHUNK_EAST_WEST
 
-local CHUNK_ALL_DIRECTIONS = constants.CHUNK_ALL_DIRECTIONS
-local CHUNK_IMPASSABLE = constants.CHUNK_IMPASSABLE
+local CHUNK_ALL_DIRECTIONS = Constants.CHUNK_ALL_DIRECTIONS
+local CHUNK_IMPASSABLE = Constants.CHUNK_IMPASSABLE
 
-local RESOURCE_NORMALIZER = constants.RESOURCE_NORMALIZER
+local RESOURCE_NORMALIZER = Constants.RESOURCE_NORMALIZER
 
-local CHUNK_TICK = constants.CHUNK_TICK
+local CHUNK_TICK = Constants.CHUNK_TICK
 
-local GENERATOR_PHEROMONE_LEVEL_1 = constants.GENERATOR_PHEROMONE_LEVEL_1
-local GENERATOR_PHEROMONE_LEVEL_3 = constants.GENERATOR_PHEROMONE_LEVEL_3
-local GENERATOR_PHEROMONE_LEVEL_5 = constants.GENERATOR_PHEROMONE_LEVEL_5
-local GENERATOR_PHEROMONE_LEVEL_6 = constants.GENERATOR_PHEROMONE_LEVEL_6
+local GENERATOR_PHEROMONE_LEVEL_1 = Constants.GENERATOR_PHEROMONE_LEVEL_1
+local GENERATOR_PHEROMONE_LEVEL_3 = Constants.GENERATOR_PHEROMONE_LEVEL_3
+local GENERATOR_PHEROMONE_LEVEL_5 = Constants.GENERATOR_PHEROMONE_LEVEL_5
+local GENERATOR_PHEROMONE_LEVEL_6 = Constants.GENERATOR_PHEROMONE_LEVEL_6
 
 -- imported functions
 
-local setAreaInQueryChunkSize = queryUtils.setAreaInQueryChunkSize
-local setAreaXInQuery = queryUtils.setAreaXInQuery
-local setAreaYInQuery = queryUtils.setAreaYInQuery
+local removeBaseResourceChunk = ChunkPropertyUtils.removeBaseResourceChunk
+local addBaseResourceChunk = ChunkPropertyUtils.addBaseResourceChunk
 
-local setPlayerBaseGenerator = chunkPropertyUtils.setPlayerBaseGenerator
-local addPlayerBaseGenerator = chunkPropertyUtils.addPlayerBaseGenerator
-local setResourceGenerator = chunkPropertyUtils.setResourceGenerator
-local addResourceGenerator = chunkPropertyUtils.addResourceGenerator
+local setAreaInQueryChunkSize = Utils.setAreaInQueryChunkSize
+local setAreaXInQuery = Utils.setAreaXInQuery
+local setAreaYInQuery = Utils.setAreaYInQuery
 
-local addNestCount = chunkPropertyUtils.addNestCount
-local removeNestCount = chunkPropertyUtils.removeNestCount
-local addHiveCount = chunkPropertyUtils.addHiveCount
-local removeHiveCount = chunkPropertyUtils.removeHiveCount
-local addTrapCount = chunkPropertyUtils.addTrapCount
-local removeTrapCount = chunkPropertyUtils.removeTrapCount
-local addTurretCount = chunkPropertyUtils.addTurretCount
-local removeTurretCount = chunkPropertyUtils.removeTurretCount
-local addUtilityCount = chunkPropertyUtils.addUtilityCount
-local removeUtilityCount = chunkPropertyUtils.removeUtilityCount
+local setPlayerBaseGenerator = ChunkPropertyUtils.setPlayerBaseGenerator
+local addPlayerBaseGenerator = ChunkPropertyUtils.addPlayerBaseGenerator
+local setResourceGenerator = ChunkPropertyUtils.setResourceGenerator
+local addResourceGenerator = ChunkPropertyUtils.addResourceGenerator
 
-local getPlayerBaseGenerator = chunkPropertyUtils.getPlayerBaseGenerator
-local setRaidNestActiveness = chunkPropertyUtils.setRaidNestActiveness
-local setNestActiveness = chunkPropertyUtils.setNestActiveness
-local getChunkById = mapUtils.getChunkById
+local addNestCount = ChunkPropertyUtils.addNestCount
+local removeNestCount = ChunkPropertyUtils.removeNestCount
+local addHiveCount = ChunkPropertyUtils.addHiveCount
+local removeHiveCount = ChunkPropertyUtils.removeHiveCount
+local addTurretCount = ChunkPropertyUtils.addTurretCount
+local removeTurretCount = ChunkPropertyUtils.removeTurretCount
+local addUtilityCount = ChunkPropertyUtils.addUtilityCount
+local removeUtilityCount = ChunkPropertyUtils.removeUtilityCount
 
-local processNestActiveness = chunkPropertyUtils.processNestActiveness
+local setChunkBase = ChunkPropertyUtils.setChunkBase
 
-local removeChunkBase = chunkPropertyUtils.removeChunkBase
-local getEnemyStructureCount = chunkPropertyUtils.getEnemyStructureCount
+local processNestActiveness = ChunkPropertyUtils.processNestActiveness
 
-local findNearbyBase = chunkPropertyUtils.findNearbyBase
+local removeChunkBase = ChunkPropertyUtils.removeChunkBase
+local getEnemyStructureCount = ChunkPropertyUtils.getEnemyStructureCount
 
-local queueUpgrade = baseUtils.queueUpgrade
-local createBase = baseUtils.createBase
-local modifyBaseUnitPoints = baseUtils.modifyBaseUnitPoints
+local findNearbyBase = ChunkPropertyUtils.findNearbyBase
 
-local euclideanDistancePoints = mathUtils.euclideanDistancePoints
+local queueUpgrade = BaseUtils.queueUpgrade
+local createBase = BaseUtils.createBase
+local modifyBaseUnitPoints = BaseUtils.modifyBaseUnitPoints
 
-local getChunkBase = chunkPropertyUtils.getChunkBase
-local setChunkBase = chunkPropertyUtils.setChunkBase
-local setPassable = chunkPropertyUtils.setPassable
-local setPathRating = chunkPropertyUtils.setPathRating
+local euclideanDistancePoints = MathUtils.euclideanDistancePoints
 
-local getChunkByXY = mapUtils.getChunkByXY
+local setPassable = ChunkPropertyUtils.setPassable
+local setPathRating = ChunkPropertyUtils.setPathRating
+
+local getChunkByXY = MapUtils.getChunkByXY
 
 local mMin = math.min
 local mMax = math.max
@@ -118,12 +118,11 @@ local mFloor = math.floor
 
 local function getEntityOverlapChunks(map, entity)
     local boundingBox = entity.prototype.collision_box or entity.prototype.selection_box
-    local overlapArray = map.universe.chunkOverlapArray
 
-    overlapArray[1] = -1 --LeftTop
-    overlapArray[2] = -1 --RightTop
-    overlapArray[3] = -1 --LeftBottom
-    overlapArray[4] = -1 --RightBottom
+    ChunkOverlapArray[1] = -1 --LeftTop
+    ChunkOverlapArray[2] = -1 --RightTop
+    ChunkOverlapArray[3] = -1 --LeftBottom
+    ChunkOverlapArray[4] = -1 --RightBottom
 
     if boundingBox then
         local center = entity.position
@@ -140,18 +139,18 @@ local function getEntityOverlapChunks(map, entity)
         local rightTopChunkX = mFloor((center.x + bottomXOffset) * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
         local leftBottomChunkY = mFloor((center.y + bottomYOffset) * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
 
-        overlapArray[1] = getChunkByXY(map, leftTopChunkX, leftTopChunkY) -- LeftTop
+        ChunkOverlapArray[1] = getChunkByXY(map, leftTopChunkX, leftTopChunkY) -- LeftTop
         if (leftTopChunkX ~= rightTopChunkX) then
-            overlapArray[2] = getChunkByXY(map, rightTopChunkX, leftTopChunkY) -- RightTop
+            ChunkOverlapArray[2] = getChunkByXY(map, rightTopChunkX, leftTopChunkY) -- RightTop
         end
         if (leftTopChunkY ~= leftBottomChunkY) then
-            overlapArray[3] = getChunkByXY(map, leftTopChunkX, leftBottomChunkY) -- LeftBottom
+            ChunkOverlapArray[3] = getChunkByXY(map, leftTopChunkX, leftBottomChunkY) -- LeftBottom
         end
         if (leftTopChunkX ~= rightTopChunkX) and (leftTopChunkY ~= leftBottomChunkY) then
-            overlapArray[4] = getChunkByXY(map, rightTopChunkX, leftBottomChunkY) -- RightBottom
+            ChunkOverlapArray[4] = getChunkByXY(map, rightTopChunkX, leftBottomChunkY) -- RightBottom
         end
     end
-    return overlapArray
+    return ChunkOverlapArray
 end
 
 local function scanPaths(chunk, map)
@@ -161,9 +160,8 @@ local function scanPaths(chunk, map)
     local x = chunk.x
     local y = chunk.y
 
-    local universe = map.universe
-    local filteredEntitiesCliffQuery = universe.spFilteredEntitiesCliffQuery
-    local filteredTilesPathQuery = universe.spFilteredTilesPathQuery
+    local filteredEntitiesCliffQuery = Universe.spFilteredEntitiesCliffQuery
+    local filteredTilesPathQuery = Universe.spFilteredTilesPathQuery
     local count_entities_filtered = surface.count_entities_filtered
     local count_tiles_filtered = surface.count_tiles_filtered
 
@@ -206,23 +204,39 @@ end
 
 local function scorePlayerBuildings(map, chunk)
     local surface = map.surface
-    local universe = map.universe
-    setAreaInQueryChunkSize(universe.spbHasPlayerStructuresQuery, chunk)
-    if surface.count_entities_filtered(universe.spbHasPlayerStructuresQuery) > 0 then
-        return (surface.count_entities_filtered(universe.spbFilteredEntitiesPlayerQueryLowest) * GENERATOR_PHEROMONE_LEVEL_1) +
-            (surface.count_entities_filtered(universe.spbFilteredEntitiesPlayerQueryLow) * GENERATOR_PHEROMONE_LEVEL_3) +
-            (surface.count_entities_filtered(universe.spbFilteredEntitiesPlayerQueryHigh) * GENERATOR_PHEROMONE_LEVEL_5) +
-            (surface.count_entities_filtered(universe.spbFilteredEntitiesPlayerQueryHighest) * GENERATOR_PHEROMONE_LEVEL_6)
+    setAreaInQueryChunkSize(Universe.spbHasPlayerStructuresQuery, chunk)
+    if surface.count_entities_filtered(Universe.spbHasPlayerStructuresQuery) > 0 then
+        return (surface.count_entities_filtered(Universe.spbFilteredEntitiesPlayerQueryLowest) * GENERATOR_PHEROMONE_LEVEL_1) +
+            (surface.count_entities_filtered(Universe.spbFilteredEntitiesPlayerQueryLow) * GENERATOR_PHEROMONE_LEVEL_3) +
+            (surface.count_entities_filtered(Universe.spbFilteredEntitiesPlayerQueryHigh) * GENERATOR_PHEROMONE_LEVEL_5) +
+            (surface.count_entities_filtered(Universe.spbFilteredEntitiesPlayerQueryHighest) * GENERATOR_PHEROMONE_LEVEL_6)
     end
     return 0
 end
 
-function chunkUtils.initialScan(chunk, map, tick)
+local registerTypeToAddFn = {
+    ["spitter-spawner"] = addNestCount,
+    ["biter-spawner"] = addNestCount,
+    ["turret"] = addTurretCount,
+    ["utility"] = addUtilityCount,
+    ["hive"] = addHiveCount,
+    ["unit-spawner"] = addNestCount
+}
+
+local unregisterTypeToRemoveFn = {
+    ["spitter-spawner"] = removeNestCount,
+    ["biter-spawner"] = removeNestCount,
+    ["turret"] = removeTurretCount,
+    ["utility"] = removeUtilityCount,
+    ["hive"] = removeHiveCount,
+    ["unit-spawner"] = removeNestCount
+}
+
+function ChunkUtils.initialScan(chunk, map, tick)
     local surface = map.surface
-    local universe = map.universe
-    setAreaInQueryChunkSize(universe.isFilteredTilesQuery, chunk)
+    setAreaInQueryChunkSize(Universe.isFilteredTilesQuery, chunk)
     local pass = scanPaths(chunk, map)
-    local enemyBuildings = surface.find_entities_filtered(universe.isFilteredEntitiesEnemyStructureQuery)
+    local enemyBuildings = surface.find_entities_filtered(Universe.isFilteredEntitiesEnemyStructureQuery)
     local playerObjects = scorePlayerBuildings(map, chunk)
 
     if (pass ~= CHUNK_IMPASSABLE) or (#enemyBuildings > 0) or (playerObjects > 0) then
@@ -232,31 +246,26 @@ function chunkUtils.initialScan(chunk, map, tick)
 
         if (pass ~= CHUNK_IMPASSABLE) then
             local neutralObjects = mMax(0,
-                                        mMin(1 - (surface.count_entities_filtered(universe.isFilteredEntitiesChunkNeutral) * 0.005),
+                                        mMin(1 - (surface.count_entities_filtered(Universe.isFilteredEntitiesChunkNeutral) * 0.005),
                                              1) * 0.20)
 
-            setPassable(map, chunk, pass)
+            setPassable(chunk, pass)
 
-            local waterTiles = (1 - (surface.count_tiles_filtered(universe.isFilteredTilesQuery) * 0.0009765625)) * 0.80
-            setPathRating(map, chunk, waterTiles + neutralObjects)
-            setPlayerBaseGenerator(map, chunk, playerObjects)
+            local waterTiles = (1 - (surface.count_tiles_filtered(Universe.isFilteredTilesQuery) * 0.0009765625)) * 0.80
+            setPathRating(chunk, waterTiles + neutralObjects)
+            setPlayerBaseGenerator(chunk, playerObjects)
 
-            local resources = surface.count_entities_filtered(universe.isCountResourcesQuery) * RESOURCE_NORMALIZER
-            setResourceGenerator(map, chunk, resources)
-
-            local counts = map.chunkScanCounts
-            for i=1,#HIVE_BUILDINGS_TYPES do
-                counts[HIVE_BUILDINGS_TYPES[i]] = 0
-            end
+            local resources = surface.count_entities_filtered(Universe.isCountResourcesQuery) * RESOURCE_NORMALIZER
+            setResourceGenerator(chunk, resources)
 
             if (#enemyBuildings > 0) then
-                local base = findNearbyBase(map, chunk)
+                local base = findNearbyBase(chunk)
                 if not base then
                     base = createBase(map, chunk, tick)
                 end
 
-                if universe.NEW_ENEMIES then
-                    local unitList = surface.find_entities_filtered(universe.isFilteredEntitiesUnitQuery)
+                if Universe.NEW_ENEMIES then
+                    local unitList = surface.find_entities_filtered(Universe.isFilteredEntitiesUnitQuery)
                     for i=1,#unitList do
                         local unit = unitList[i]
                         if (unit.valid) then
@@ -266,7 +275,7 @@ function chunkUtils.initialScan(chunk, map, tick)
 
                     for i = 1, #enemyBuildings do
                         local enemyBuilding = enemyBuildings[i]
-                        chunkUtils.registerEnemyBaseStructure(map, enemyBuilding, base)
+                        ChunkUtils.registerEnemyBaseStructure(enemyBuilding, base, tick)
                         local entityName = enemyBuilding.name
                         local isVanilla = VANILLA_ENTITY_TYPE_LOOKUP[entityName]
                         if isVanilla or (not isVanilla and not BUILDING_HIVE_TYPE_LOOKUP[entityName]) then
@@ -280,7 +289,7 @@ function chunkUtils.initialScan(chunk, map, tick)
                 else
                     for i=1,#enemyBuildings do
                         local building = enemyBuildings[i]
-                        chunkUtils.registerEnemyBaseStructure(map, building, base)
+                        ChunkUtils.registerEnemyBaseStructure(building, base, tick)
                     end
                 end
             end
@@ -292,26 +301,25 @@ function chunkUtils.initialScan(chunk, map, tick)
     return -1
 end
 
-function chunkUtils.chunkPassScan(chunk, map)
+function ChunkUtils.chunkPassScan(chunk, map)
     local surface = map.surface
-    local universe = map.universe
-    setAreaInQueryChunkSize(universe.cpsFilteredTilesQuery, chunk)
+    setAreaInQueryChunkSize(Universe.cpsFilteredTilesQuery, chunk)
     local pass = scanPaths(chunk, map)
-    local enemyCount = surface.count_entities_filtered(universe.cpsFilteredEnemyAnyFound)
-    local playerObjects = getPlayerBaseGenerator(map, chunk)
+    local enemyCount = surface.count_entities_filtered(Universe.cpsFilteredEnemyAnyFound)
+    local playerObjects = chunk.playerBaseGenerator
 
-    if (pass ~= CHUNK_IMPASSABLE) or (enemyCount > 0) or (playerObjects > 0) then
+    if (pass ~= CHUNK_IMPASSABLE) or (enemyCount > 0) or playerObjects then
         local neutralObjects = mMax(0,
-                                    mMin(1 - (surface.count_entities_filtered(universe.cpsFilteredEntitiesChunkNeutral) * 0.005),
+                                    mMin(1 - (surface.count_entities_filtered(Universe.cpsFilteredEntitiesChunkNeutral) * 0.005),
                                          1) * 0.20)
-        local waterTiles = (1 - (surface.count_tiles_filtered(universe.cpsFilteredTilesQuery) * 0.0009765625)) * 0.80
+        local waterTiles = (1 - (surface.count_tiles_filtered(Universe.cpsFilteredTilesQuery) * 0.0009765625)) * 0.80
 
         if ((playerObjects > 0) or (enemyCount > 0)) and (pass == CHUNK_IMPASSABLE) then
             pass = CHUNK_ALL_DIRECTIONS
         end
 
-        setPassable(map, chunk, pass)
-        setPathRating(map, chunk, waterTiles + neutralObjects)
+        setPassable(chunk, pass)
+        setPathRating(chunk, waterTiles + neutralObjects)
 
         return chunk
     end
@@ -319,121 +327,63 @@ function chunkUtils.chunkPassScan(chunk, map)
     return -1
 end
 
-function chunkUtils.mapScanPlayerChunk(chunk, map)
+function ChunkUtils.mapScanPlayerChunk(chunk, map)
     local playerObjects = scorePlayerBuildings(map, chunk)
-    setPlayerBaseGenerator(map, chunk, playerObjects)
+    setPlayerBaseGenerator(chunk, playerObjects)
 end
 
-function chunkUtils.mapScanResourceChunk(chunk, map)
-    local universe = map.universe
-    setAreaInQueryChunkSize(universe.msrcCountResourcesQuery, chunk)
+function ChunkUtils.mapScanResourceChunk(chunk, map)
+    setAreaInQueryChunkSize(Universe.msrcCountResourcesQuery, chunk)
     local surface = map.surface
-    local resources = surface.count_entities_filtered(universe.msrcCountResourcesQuery) * RESOURCE_NORMALIZER
-    setResourceGenerator(map, chunk, resources)
-    local waterTiles = (1 - (surface.count_tiles_filtered(universe.msrcFilteredTilesQuery) * 0.0009765625)) * 0.80
+    local resources = surface.count_entities_filtered(Universe.msrcCountResourcesQuery) * RESOURCE_NORMALIZER
+    setResourceGenerator(chunk, resources)
+    local waterTiles = (1 - (surface.count_tiles_filtered(Universe.msrcFilteredTilesQuery) * 0.0009765625)) * 0.80
     local neutralObjects = mMax(0,
-                                mMin(1 - (surface.count_entities_filtered(universe.msrcFilteredEntitiesChunkNeutral) * 0.005),
+                                mMin(1 - (surface.count_entities_filtered(Universe.msrcFilteredEntitiesChunkNeutral) * 0.005),
                                      1) * 0.20)
-    setPathRating(map, chunk, waterTiles + neutralObjects)
+    setPathRating(chunk, waterTiles + neutralObjects)
 end
 
-function chunkUtils.mapScanEnemyChunk(chunk, map, tick)
-    local universe = map.universe
-    setAreaInQueryChunkSize(universe.msecFilteredEntitiesEnemyStructureQuery, chunk)
-    local buildings = map.surface.find_entities_filtered(universe.msecFilteredEntitiesEnemyStructureQuery)
-    local counts = map.chunkScanCounts
-    for i=1,#HIVE_BUILDINGS_TYPES do
-        counts[HIVE_BUILDINGS_TYPES[i]] = 0
-    end
+function ChunkUtils.mapScanEnemyChunk(chunk, map, tick)
+    setAreaInQueryChunkSize(Universe.msecFilteredEntitiesEnemyStructureQuery, chunk)
+    local buildings = map.surface.find_entities_filtered(Universe.msecFilteredEntitiesEnemyStructureQuery)
     if (#buildings > 0) then
-        local base = findNearbyBase(map, chunk)
+        local base = findNearbyBase(chunk)
         if not base then
             base = createBase(map, chunk, tick)
         end
         for i=1,#buildings do
             local building = buildings[i]
 
-            chunkUtils.registerEnemyBaseStructure(map, building, base)
+            ChunkUtils.registerEnemyBaseStructure(building, base, tick)
         end
     end
 end
 
-function chunkUtils.addBasesToAllEnemyStructures(universe, tick)
-    for chunkId, chunkPack in pairs(universe.chunkToNests) do
-        local map = chunkPack.map
-        if map.surface.valid then
-            local chunk = getChunkById(map, chunkId)
-            local base = findNearbyBase(map, chunk)
-            if not base then
-                base = createBase(map, chunk, tick)
-            end
-            setChunkBase(map, chunk, base)
-        end
-    end
-    for _, map in pairs(universe.maps) do
-        if map.surface.valid then
-            for chunkId in pairs(map.chunkToTurrets) do
-                local chunk = getChunkById(map, chunkId)
-                local base = findNearbyBase(map, chunk)
-                if not base then
-                    base = createBase(map, chunk, tick)
-                end
-                setChunkBase(map, chunk, base)
-            end
-            for chunkId in pairs(map.chunkToHives) do
-                local chunk = getChunkById(map, chunkId)
-                local base = findNearbyBase(map, chunk)
-                if not base then
-                    base = createBase(map, chunk, tick)
-                end
-                setChunkBase(map, chunk, base)
-            end
-            for chunkId in pairs(map.chunkToUtilities) do
-                local chunk = getChunkById(map, chunkId)
-                local base = findNearbyBase(map, chunk)
-                if not base then
-                    base = createBase(map, chunk, tick)
-                end
-                setChunkBase(map, chunk, base)
-            end
-            for chunkId in pairs(map.chunkToTraps) do
-                local chunk = getChunkById(map, chunkId)
-                local base = findNearbyBase(map, chunk)
-                if not base then
-                    base = createBase(map, chunk, tick)
-                end
-                setChunkBase(map, chunk, base)
-            end
-        end
-    end
-end
-
-function chunkUtils.entityForPassScan(map, entity)
+function ChunkUtils.entityForPassScan(map, entity)
     local overlapArray = getEntityOverlapChunks(map, entity)
 
     for i=1,#overlapArray do
         local chunk = overlapArray[i]
-        if (chunk ~= -1) and not map.universe.chunkToPassScan[chunk.id] then
-            map.universe.chunkToPassScan[chunk.id] = {
-                map = map,
-                chunk = chunk
-            }
+        if (chunk ~= -1) then
+            Universe.chunkToPassScan[chunk.id] = chunk
         end
     end
 end
 
-local function newChunkId(universe)
-    local id = universe.chunkId
-    universe.chunkId = universe.chunkId + 1
+local function newChunkId()
+    local id = Universe.chunkId
+    Universe.chunkId = Universe.chunkId + 1
     return id
 end
 
-function chunkUtils.createChunk(map, topX, topY)
+function ChunkUtils.createChunk(map, topX, topY)
     local chunk = {
         x = topX,
         y = topY,
         dOrigin = euclideanDistancePoints(topX, topY, 0, 0),
-        id = newChunkId(map.universe)
+        id = newChunkId(),
+        map = map
     }
     chunk[BASE_PHEROMONE] = 0
     chunk[PLAYER_PHEROMONE] = 0
@@ -444,7 +394,7 @@ function chunkUtils.createChunk(map, topX, topY)
     return chunk
 end
 
-function chunkUtils.colorChunk(chunk, surface, color, ttl)
+function ChunkUtils.colorChunk(chunk, surface, color, ttl)
     local lx = math.floor(chunk.x * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
     local ly = math.floor(chunk.y * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
 
@@ -461,7 +411,7 @@ function chunkUtils.colorChunk(chunk, surface, color, ttl)
     })
 end
 
-function chunkUtils.colorXY(x, y, surface, color)
+function ChunkUtils.colorXY(x, y, surface, color)
     local lx = math.floor(x * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
     local ly = math.floor(y * CHUNK_SIZE_DIVIDER) * CHUNK_SIZE
 
@@ -478,41 +428,27 @@ function chunkUtils.colorXY(x, y, surface, color)
     })
 end
 
-function chunkUtils.registerEnemyBaseStructure(map, entity, base, skipCount)
-    local entityType = entity.type
-
-    local addFunc
+function ChunkUtils.registerEnemyBaseStructure(entity, base, tick, skipCount)
     local hiveType = BUILDING_HIVE_TYPE_LOOKUP[entity.name]
-    if (hiveType == "spitter-spawner") or (hiveType == "biter-spawner") then
-        addFunc = addNestCount
-    elseif (hiveType == "turret") then
-        addFunc = addTurretCount
-    elseif (hiveType == "trap") then
-        addFunc = addTrapCount
-    elseif (hiveType == "utility") then
-        addFunc = addUtilityCount
-    elseif (hiveType == "hive") then
-        addFunc = addHiveCount
-    else
-        if (entityType == "turret") then
-            addFunc = addTurretCount
-        else
-            addFunc = addNestCount
-        end
-    end
+
+    local addFunc =
+        registerTypeToAddFn[hiveType]
+        or registerTypeToAddFn[entity.type]
+        or addNestCount
 
     local added = false
     local entityUnitNumber = entity.unit_number
-    local chunks = getEntityOverlapChunks(map, entity)
+    local chunks = getEntityOverlapChunks(base.map, entity)
     for i=1,#chunks do
         local chunk = chunks[i]
         if (chunk ~= -1) then
-            if addFunc(map, chunk, entityUnitNumber) then
+            if addFunc(chunk, entityUnitNumber) then
                 added = true
-                setChunkBase(map, chunk, base)
-            end
-            if (hiveType == "spitter-spawner") or (hiveType == "biter-spawner") then
-                processNestActiveness(map, chunk)
+                setChunkBase(chunk, base)
+                addBaseResourceChunk(base, chunk)
+                if (hiveType == "spitter-spawner") or (hiveType == "biter-spawner") then
+                    processNestActiveness(chunk, tick)
+                end
             end
         end
     end
@@ -521,29 +457,13 @@ function chunkUtils.registerEnemyBaseStructure(map, entity, base, skipCount)
     end
 end
 
-function chunkUtils.unregisterEnemyBaseStructure(map, entity, damageTypeName, skipCount)
-    local entityType = entity.type
-
-    local removeFunc
+function ChunkUtils.unregisterEnemyBaseStructure(map, entity, damageTypeName, skipCount)
     local hiveType = BUILDING_HIVE_TYPE_LOOKUP[entity.name]
-    if (hiveType == "spitter-spawner") or (hiveType == "biter-spawner") then
-        removeFunc = removeNestCount
-    elseif (hiveType == "turret") then
-        removeFunc = removeTurretCount
-    elseif (hiveType == "trap") then
-        removeFunc = removeTrapCount
-    elseif (hiveType == "utility") then
-        removeFunc = removeUtilityCount
-    elseif (hiveType == "hive") then
-        removeFunc = removeHiveCount
-    else
-        if (entityType == "turret") then
-            removeFunc = removeTurretCount
-        else
-            hiveType = "biter-spawner"
-            removeFunc = removeNestCount
-        end
-    end
+
+    local removeFunc =
+        unregisterTypeToRemoveFn[hiveType]
+        or unregisterTypeToRemoveFn[entity.type]
+        or removeNestCount
 
     local entityUnitNumber = entity.unit_number
     local usedBases = {}
@@ -551,31 +471,29 @@ function chunkUtils.unregisterEnemyBaseStructure(map, entity, damageTypeName, sk
     for i=1,#chunks do
         local chunk = chunks[i]
         if (chunk ~= -1) then
-            local base = getChunkBase(map, chunk)
-            if (hiveType == "spitter-spawner") or (hiveType == "biter-spawner") then
-                setRaidNestActiveness(map, chunk, 0, base)
-                setNestActiveness(map, chunk, 0, base)
-            end
-            if removeFunc(map, chunk, entityUnitNumber) then
-                if not usedBases[base.id] then
-                    usedBases[base.id] = true
+            if removeFunc(chunk, entityUnitNumber) then
+                local base = chunk.base
+                local baseId = base.id
+                if not usedBases[baseId] then
+                    usedBases[baseId] = true
                     if damageTypeName then
                         base.damagedBy[damageTypeName] = (base.damagedBy[damageTypeName] or 0) + 3
                         base.deathEvents = base.deathEvents + 3
                     end
-                    if (not skipCount) and (hiveType ~= "trap") then
+                    if (not skipCount) then
                         base.lostEnemyBuilding = base.lostEnemyBuilding + 1
                     end
                 end
-                if (getEnemyStructureCount(map, chunk) <= 0) then
-                    removeChunkBase(map, chunk, base)
+                if (getEnemyStructureCount(chunk) <= 0) then
+                    removeBaseResourceChunk(base, chunk)
+                    removeChunkBase(chunk, base)
                 end
             end
         end
     end
 end
 
-function chunkUtils.accountPlayerEntity(entity, map, addObject, base)
+function ChunkUtils.accountPlayerEntity(entity, map, addObject, base)
     if (BUILDING_PHEROMONES[entity.type] ~= nil) and (entity.force.name ~= "enemy") then
         local entityValue = BUILDING_PHEROMONES[entity.type]
         local overlapArray = getEntityOverlapChunks(map, entity)
@@ -597,7 +515,7 @@ function chunkUtils.accountPlayerEntity(entity, map, addObject, base)
         for i=1,#overlapArray do
             local chunk = overlapArray[i]
             if (chunk ~= -1) then
-                local amount = addPlayerBaseGenerator(map, chunk, entityValue)
+                local amount = addPlayerBaseGenerator(chunk, entityValue)
                 if (amount == 0) then
                     chunk[BASE_PHEROMONE] = 0
                 end
@@ -607,7 +525,7 @@ function chunkUtils.accountPlayerEntity(entity, map, addObject, base)
     return entity
 end
 
-function chunkUtils.unregisterResource(entity, map)
+function ChunkUtils.unregisterResource(entity, map)
     if entity.prototype.infinite_resource then
         return
     end
@@ -616,23 +534,23 @@ function chunkUtils.unregisterResource(entity, map)
     for i=1,#overlapArray do
         local chunk = overlapArray[i]
         if (chunk ~= -1) then
-            addResourceGenerator(map, chunk, -RESOURCE_NORMALIZER)
+            addResourceGenerator(chunk, -RESOURCE_NORMALIZER)
         end
     end
 end
 
-function chunkUtils.registerResource(entity, map)
+function ChunkUtils.registerResource(entity, map)
     local overlapArray = getEntityOverlapChunks(map, entity)
 
     for i=1,#overlapArray do
         local chunk = overlapArray[i]
         if (chunk ~= -1) then
-            addResourceGenerator(map, chunk, RESOURCE_NORMALIZER)
+            addResourceGenerator(chunk, RESOURCE_NORMALIZER)
         end
     end
 end
 
-function chunkUtils.makeImmortalEntity(surface, entity)
+function ChunkUtils.makeImmortalEntity(surface, entity)
     local repairPosition = entity.position
     local repairName = entity.name
     local repairForce = entity.force
@@ -668,5 +586,10 @@ function chunkUtils.makeImmortalEntity(surface, entity)
     newEntity.destructible = false
 end
 
-chunkUtilsG = chunkUtils
-return chunkUtils
+function ChunkUtils.init(universe)
+    Universe = universe
+    ChunkOverlapArray = universe.chunkOverlapArray
+end
+
+ChunkUtilsG = ChunkUtils
+return ChunkUtils

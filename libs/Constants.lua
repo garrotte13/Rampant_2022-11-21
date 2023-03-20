@@ -23,6 +23,9 @@ local mathUtils = require("MathUtils")
 
 -- misc
 
+constants.ENEMY_SEED = settings.startup["rampant--enemySeed"].value
+constants.ENEMY_VARIATIONS = settings.startup["rampant--newEnemyVariations"].value
+
 constants.MAGIC_MAXIMUM_NUMBER = 1e99 -- used in loops trying to find the lowest/highest score
 constants.MAGIC_MAXIMUM_BASE_NUMBER = 100000000
 constants.RETREAT_MOVEMENT_PHEROMONE_LEVEL_MIN = (1 - 0.001)
@@ -94,6 +97,7 @@ constants.AI_SQUAD_COST = 175
 constants.RECOVER_NEST_COST = constants.AI_SQUAD_COST
 constants.RECOVER_WORM_COST = constants.AI_SQUAD_COST * 0.5
 constants.AI_VENGENCE_SQUAD_COST = 45
+constants.AI_VENGENCE_SETTLER_COST = 120
 constants.AI_SETTLER_COST = 300
 constants.AI_BASE_BUILDING_COST = 500
 constants.AI_TUNNEL_COST = 100
@@ -117,13 +121,13 @@ constants.BASE_AI_STATE_MIGRATING = 5
 constants.BASE_AI_STATE_SIEGE = 6
 constants.BASE_AI_STATE_ONSLAUGHT = 7
 
-constants.stateEnglish = {}
-constants.stateEnglish[constants.BASE_AI_STATE_PEACEFUL] = "AI_STATE_PEACEFUL"
-constants.stateEnglish[constants.BASE_AI_STATE_AGGRESSIVE] = "AI_STATE_AGGRESSIVE"
-constants.stateEnglish[constants.BASE_AI_STATE_RAIDING] = "AI_STATE_RAIDING"
-constants.stateEnglish[constants.BASE_AI_STATE_MIGRATING] = "AI_STATE_MIGRATING"
-constants.stateEnglish[constants.BASE_AI_STATE_SIEGE] = "AI_STATE_SIEGE"
-constants.stateEnglish[constants.BASE_AI_STATE_ONSLAUGHT] = "AI_STATE_ONSLAUGHT"
+constants.STATE_ENGLISH = {}
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_PEACEFUL] = "AI_STATE_PEACEFUL"
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_AGGRESSIVE] = "AI_STATE_AGGRESSIVE"
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_RAIDING] = "AI_STATE_RAIDING"
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_MIGRATING] = "AI_STATE_MIGRATING"
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_SIEGE] = "AI_STATE_SIEGE"
+constants.STATE_ENGLISH[constants.BASE_AI_STATE_ONSLAUGHT] = "AI_STATE_ONSLAUGHT"
 
 constants.BASE_GENERATION_STATE_DORMANT = 0
 constants.BASE_GENERATION_STATE_ACTIVE = 1
@@ -173,12 +177,14 @@ constants.DOUBLE_DEATH_PHEROMONE_GENERATOR_AMOUNT = constants.DEATH_PHEROMONE_GE
 constants.TEN_DEATH_PHEROMONE_GENERATOR_AMOUNT = constants.DEATH_PHEROMONE_GENERATOR_AMOUNT * 10
 constants.FIVE_DEATH_PHEROMONE_GENERATOR_AMOUNT = constants.DEATH_PHEROMONE_GENERATOR_AMOUNT * 5
 constants.PLAYER_PHEROMONE_GENERATOR_AMOUNT = 300
+constants.PLAYER_PHEROMONE_GENERATOR_THRESHOLD = constants.PLAYER_PHEROMONE_GENERATOR_AMOUNT * 0.85
 
 constants.IMPASSABLE_TERRAIN_GENERATOR_AMOUNT = 0
 
 -- pheromone diffusion amounts
 
 constants.MOVEMENT_GENERATOR_PERSISTANCE = 0.92
+constants.PLAYER_GENERATOR_PERSISTANCE = 0.92
 
 -- chunk attributes
 
@@ -365,7 +371,7 @@ buildTier(constants.TIERS, tiersSet)
 
 constants.TIER_UPGRADE_SET = tiersSet
 
-local variations = settings.startup["rampant--newEnemyVariations"].value
+local variations = constants.ENEMY_VARIATIONS
 
 constants.ENERGY_THIEF_LOOKUP = {}
 
@@ -1718,7 +1724,7 @@ for i=1,#constants.FACTION_SET do
             end
 
             local variationSet = {}
-            for v=1,settings.startup["rampant--newEnemyVariations"].value
+            for v=1,constants.ENEMY_VARIATIONS
             do
                 local entry = faction.type .. "-" .. building.name .. "-v" .. v .. "-t" .. t .. "-rampant"
                 enemyAlignmentLookup[entry] = faction.type
