@@ -129,7 +129,7 @@ data:extend({
             name = "rampant--enableShrinkNestsAndWorms",
             description = "rampant--enableShrinkNestsAndWorms",
             setting_type = "startup",
-            default_value = true,
+            default_value = false,
             order = "b[modifier]-j[unit]",
             per_user = false
         },
@@ -220,7 +220,7 @@ data:extend({
             type = "int-setting",
             name = "rampant--max-evo-dist",
             setting_type = "startup",
-            default_value = 40,
+            default_value = 300,
             minimum_value = 0,
             maximum_value = 100000,
             order = "c[max]-k[evolution]",
@@ -603,6 +603,16 @@ data:extend({
             minimum_value = 0.0,
             maximum_value = 100.0,
             order = "m[total]-b[ai]1",
+            per_user = false
+        },
+
+        {
+            type = "bool-setting",
+            name = "rampant--legacyChunkScanning",
+            description = "rampant--legacyChunkScanning",
+            setting_type = "runtime-global",
+            default_value = false,
+            order = "m[total]-c[ai]zz",
             per_user = false
         },
 

@@ -287,9 +287,11 @@ local function addCommandSet()
     }
 
     -- ppu
-    Universe.ppuUpgradeEntityQuery = {
+    Universe.baseUtilsQueries = {}
+    Universe.baseUtilsQueries.createEntityQuery = {
         name = "",
-        position = {0,0}
+        position = {0,0},
+        raise_built = true
     }
 
     Universe.squadQueries = {}
@@ -440,7 +442,6 @@ function Upgrade.addUniverseProperties()
         Universe.kamikazeThreshold = 0
         Universe.attackWaveLowerBound = 1
 
-        Universe.settlerCooldown = 0
         Universe.settlerWaveDeviation = 0
         Universe.settlerWaveSize = 0
 
@@ -449,6 +450,7 @@ function Upgrade.addUniverseProperties()
         Universe.printAIStateChanges = settings.global["rampant--printAIStateChanges"].value
         Universe.debugTemperament = settings.global["rampant--debugTemperament"].value
 
+        Universe.upgradeId = 0
         Universe.eventId = 0
         Universe.chunkId = 0
         Universe.maps = {}
@@ -478,6 +480,11 @@ function Upgrade.addUniverseProperties()
         Universe.chunkToRallys = {}
         Universe.chunkToPassScan = {}
 
+        Universe.hiveData = {}
+        Universe.hives = {}
+        Universe.activeHives = {}
+        Universe.hiveIterator = nil
+
         Universe.baseId = 0
         Universe.awake = false
 
@@ -495,6 +502,7 @@ function Upgrade.addUniverseProperties()
         Universe.excludedSurfaces = {}
 
         Universe.pendingUpgrades = {}
+        Universe.pendingUpgradesLength = 0
         Universe.settlePurpleCloud = {}
     end
 end

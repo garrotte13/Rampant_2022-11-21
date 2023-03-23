@@ -22,6 +22,7 @@ local Processor = {}
 --
 
 local Universe
+local Queries
 
 -- imports
 
@@ -35,6 +36,10 @@ local BaseUtils = require("BaseUtils")
 local MathUtils = require("MathUtils")
 
 -- Constants
+
+local CHUNK_SIZE = Constants.CHUNK_SIZE
+local EIGHTH_CHUNK_SIZE = Constants.EIGHTH_CHUNK_SIZE
+local HALF_CHUNK_SIZE = Constants.HALF_CHUNK_SIZE
 
 local PLAYER_PHEROMONE_GENERATOR_AMOUNT = Constants.PLAYER_PHEROMONE_GENERATOR_AMOUNT
 
@@ -52,31 +57,35 @@ local AI_VENGENCE_SQUAD_COST = Constants.AI_VENGENCE_SQUAD_COST
 local COOLDOWN_DRAIN = Constants.COOLDOWN_DRAIN
 local COOLDOWN_RALLY = Constants.COOLDOWN_RALLY
 local COOLDOWN_RETREAT = Constants.COOLDOWN_RETREAT
-local PROXY_ENTITY_LOOKUP = Constants.PROXY_ENTITY_LOOKUP
-local BASE_DISTANCE_TO_EVO_INDEX = Constants.BASE_DISTANCE_TO_EVO_INDEX
 
-local BUILDING_SPACE_LOOKUP = Constants.BUILDING_SPACE_LOOKUP
+local BUILDING_HIVE_TYPE_LOOKUP = Constants.BUILDING_HIVE_TYPE_LOOKUP
+
+local DEV_HIVE_TTL = Constants.DEV_HIVE_TTL
+local MAX_HIVE_TTL = Constants.MAX_HIVE_TTL
+local MIN_HIVE_TTL = Constants.MIN_HIVE_TTL
 
 -- imported functions
 
+local distortPositionConcentricCircles = MathUtils.distortPositionConcentricCircles
+local linearInterpolation = MathUtils.linearInterpolation
+local gaussianRandomRangeRG = MathUtils.gaussianRandomRangeRG
 local findInsertionPoint = MapUtils.findInsertionPoint
 
 local createChunk = ChunkUtils.createChunk
 local initialScan = ChunkUtils.initialScan
-local euclideanDistancePoints = MathUtils.euclideanDistancePoints
 
 local removeChunkFromMap = MapUtils.removeChunkFromMap
 local chunkPassScan = ChunkUtils.chunkPassScan
-local findEntityUpgrade = BaseUtils.findEntityUpgrade
 
 local unregisterEnemyBaseStructure = ChunkUtils.unregisterEnemyBaseStructure
-local registerEnemyBaseStructure = ChunkUtils.registerEnemyBaseStructure
 local setPositionInQuery = Utils.setPositionInQuery
 
 local addPlayerGenerator = ChunkPropertyUtils.addPlayerGenerator
 local findNearbyBase = ChunkPropertyUtils.findNearbyBase
 
 local removeChunkToNest = MapUtils.removeChunkToNest
+
+local queueCreation = BaseUtils.queueCreation
 
 local processPheromone = MapUtils.processPheromone
 
@@ -185,41 +194,76 @@ function Processor.processPlayers(players, tick)
         end
     end
 
-    if (#players > 0) then
-        local player = players[Universe.random(#players)]
-        if validPlayer(player) then
-            local char = player.character
-            local map = Universe.maps[char.surface.index]
-            if map then
-                local playerChunk = getChunkByPosition(map, char.position)
+    if (#players == 0) then
+        return
+    end
+    local player = players[Universe.random(#players)]
+    if not validPlayer(player) then
+        return
+    end
+    local char = player.character
+    local map = Universe.maps[char.surface.index]
+    if not map then
+        return
+    end
+    local playerChunk = getChunkByPosition(map, char.position)
 
-                if (playerChunk ~= -1) then
-                    local base = findNearbyBase(playerChunk)
-                    if not base then
-                        return
-                    end
-                    local allowingAttacks = canAttack(base)
-                    local vengence = allowingAttacks and
-                        (base.unitPoints >= AI_VENGENCE_SQUAD_COST) and
-                        ((getEnemyStructureCount(playerChunk) > 0) or
-                            (getCombinedDeathGeneratorRating(playerChunk) < Universe.retreatThreshold))
+    if (playerChunk == -1) then
+        return
+    end
+    local base = findNearbyBase(playerChunk)
+    if not base then
+        return
+    end
+    local allowingAttacks = canAttack(base)
+    local vengence = allowingAttacks and
+        (base.unitPoints >= AI_VENGENCE_SQUAD_COST) and
+        ((getEnemyStructureCount(playerChunk) > 0) or
+            (getCombinedDeathGeneratorRating(playerChunk) < Universe.retreatThreshold))
 
-                    for x=playerChunk.x - PROCESS_PLAYER_BOUND, playerChunk.x + PROCESS_PLAYER_BOUND, 32 do
-                        for y=playerChunk.y - PROCESS_PLAYER_BOUND, playerChunk.y + PROCESS_PLAYER_BOUND, 32 do
-                            local chunk = getChunkByXY(map, x, y)
+    local quadrant = Universe.random(4)
 
-                            if (chunk ~= -1) then
-                                processPheromone(chunk, tick, true)
+    local pX = playerChunk.x
+    local pY = playerChunk.y
+    local pXStart
+    local pYStart
+    local pXEnd
+    local pYEnd
 
-                                if chunk.nestCount then
-                                    processNestActiveness(chunk, tick)
+    if quadrant == 1 then
+        pXStart = pX - PROCESS_PLAYER_BOUND
+        pXEnd = pX
+        pYStart = pY - PROCESS_PLAYER_BOUND
+        pYEnd = pY
+    elseif quadrant == 2 then
+        pXStart = pX
+        pXEnd = pX + PROCESS_PLAYER_BOUND
+        pYStart = pY - PROCESS_PLAYER_BOUND
+        pYEnd = pY
+    elseif quadrant == 3 then
+        pXStart = pX - PROCESS_PLAYER_BOUND
+        pXEnd = pX
+        pYStart = pY
+        pYEnd = pY + PROCESS_PLAYER_BOUND
+    elseif quadrant == 4 then
+        pXStart = pX
+        pXEnd = pX + PROCESS_PLAYER_BOUND
+        pYStart = pY
+        pYEnd = pY + PROCESS_PLAYER_BOUND
+    end
 
-                                    if vengence then
-                                        Universe.vengenceQueue[chunk.id] = chunk
-                                    end
-                                end
-                            end
-                        end
+    for x=pXStart, pXEnd, CHUNK_SIZE do
+        for y=pYStart, pYEnd, CHUNK_SIZE do
+            local chunk = getChunkByXY(map, x, y)
+
+            if (chunk ~= -1) then
+                processPheromone(chunk, tick, true)
+
+                if chunk.nestCount then
+                    processNestActiveness(chunk, tick)
+
+                    if vengence then
+                        Universe.vengenceQueue[chunk.id] = chunk
                     end
                 end
             end
@@ -441,6 +485,60 @@ function Processor.processClouds(tick)
     map.surface.create_entity(Universe.obaCreateBuildCloudQuery)
 end
 
+function Processor.processHives(tick)
+    local entityId = Universe.hiveIterator
+    local hiveData
+    if not entityId then
+        entityId, hiveData = next(Universe.activeHives, nil)
+    else
+        hiveData = Universe.activeHives[entityId]
+    end
+    if not entityId then
+        Universe.hiveIterator = nil
+        return
+    end
+    if tick < hiveData.tick then
+        return
+    end
+    Universe.hiveIterator = next(Universe.activeHives, entityId)
+    local base = hiveData.base
+    local map = base.map
+    if not map.surface.valid then
+        Universe.activeHives[entityId] = nil
+        return
+    end
+    hiveData.tick = tick +
+        gaussianRandomRangeRG(
+            linearInterpolation(Universe.evolutionLevel, MAX_HIVE_TTL, MIN_HIVE_TTL),
+            DEV_HIVE_TTL,
+            MIN_HIVE_TTL,
+            MAX_HIVE_TTL,
+            Universe.random
+        )
+
+    local timeDelay = 0
+
+    local position = distortPositionConcentricCircles(
+        Universe.random,
+        hiveData.position,
+        EIGHTH_CHUNK_SIZE * hiveData.tier,
+        EIGHTH_CHUNK_SIZE
+    )
+
+    if hiveData.nest < hiveData.maxNests then
+        local entityType = "biter-spawner"
+        if Universe.random() < 0.5 then
+            entityType = "spitter-spawner"
+        end
+        queueCreation(base, position, entityType, timeDelay, hiveData)
+    elseif hiveData.turret < hiveData.maxTurrets then
+        queueCreation(base, position, "turret", timeDelay, hiveData)
+    elseif hiveData.hive < hiveData.maxHives then
+        queueCreation(base, position, "hive", timeDelay, hiveData)
+    else
+        Universe.activeHives[entityId] = nil
+    end
+end
 
 function Processor.processPendingChunks(tick, flush)
     local pendingChunks = Universe.pendingChunks
@@ -509,85 +607,73 @@ function Processor.processPendingChunks(tick, flush)
 end
 
 function Processor.processPendingUpgrades(tick)
-    local entityId, entityData = next(Universe.pendingUpgrades, nil)
-    if not entityId then
-        if tableSize(Universe.pendingUpgrades) == 0 then
+    local upgradeId, entityData = next(Universe.pendingUpgrades, nil)
+    if not upgradeId then
+        if Universe.pendingUpgradesLength == 0 then
             Universe.pendingUpgrades = {}
         end
         return
     end
     local entity = entityData.entity
-    if not entity.valid then
-        Universe.pendingUpgrades[entityId] = nil
+    if (entityData.state ~= 2) and not entity.valid then
+        Universe.pendingUpgrades[upgradeId] = nil
+        Universe.pendingUpgradesLength = Universe.pendingUpgradesLength - 1
         return
     end
 
     if entityData.delayTLL and tick < entityData.delayTLL then
         return
     end
-    Universe.pendingUpgrades[entityId] = nil
-    local base = entityData.base
-    local map = base.map
-    local baseAlignment = base.alignment
-    local position = entityData.position or entity.position
 
-    local pickedBaseAlignment
-    if baseAlignment[2] then
-        if Universe.random() < 0.75 then
-            pickedBaseAlignment = baseAlignment[2]
-        else
-            pickedBaseAlignment = baseAlignment[1]
-        end
-    else
-        pickedBaseAlignment = baseAlignment[1]
-    end
-
-    local currentEvo = entity.prototype.build_base_evolution_requirement or 0
-
-    local distance = mMin(1, euclideanDistancePoints(position.x, position.y, 0, 0) * BASE_DISTANCE_TO_EVO_INDEX)
-    local evoIndex = mMax(distance, Universe.evolutionLevel)
-
-    local name = findEntityUpgrade(pickedBaseAlignment,
-                                   currentEvo,
-                                   evoIndex,
-                                   entity,
-                                   map,
-                                   entityData.evolve)
-
-    local entityName = entity.name
-    if not name and PROXY_ENTITY_LOOKUP[entityName] then
+    local state = entityData.state
+    if state == 1 then
+        local map = entityData.map
+        unregisterEnemyBaseStructure(map, entity, nil, true)
         entity.destroy()
-        return
-    elseif (name == entityName) or not name then
-        return
-    end
-
-    local surface = entity.surface
-    local query = Universe.ppuUpgradeEntityQuery
-    query.name = name
-
-    unregisterEnemyBaseStructure(map, entity, nil, true)
-    entity.destroy()
-    local foundPosition = surface.find_non_colliding_position(BUILDING_SPACE_LOOKUP[name],
-                                                              position,
-                                                              2,
-                                                              1,
-                                                              true)
-    setPositionInQuery(query, foundPosition or position)
-
-    local createdEntity = surface.create_entity({
-            name = query.name,
-            position = query.position
-    })
-    if createdEntity and createdEntity.valid then
-        if entityData.register then
-            registerEnemyBaseStructure(createdEntity, base, tick, true)
+        if not entityData.name or not entityData.position then
+            Universe.pendingUpgrades[upgradeId] = nil
+            Universe.pendingUpgradesLength = Universe.pendingUpgradesLength - 1
+            return
         end
-        if not entityData.evolve and Universe.printBaseUpgrades then
-            surface.print("["..base.id.."]:"..surface.name.." Upgrading ".. entityName .. " to " .. name .. " [gps=".. position.x ..",".. position.y .."]")
+        entityData.state = 2
+    else
+        Universe.pendingUpgrades[upgradeId] = nil
+        Universe.pendingUpgradesLength = Universe.pendingUpgradesLength - 1
+        local query = Queries.createEntityQuery
+        local name = entityData.name
+        query.name = name
+        local position = entityData.position
+        setPositionInQuery(query, position)
+        local surface = entityData.map.surface
+        local newEntity = surface.create_entity(query)
+        if newEntity and newEntity.valid then
+            local hiveType = BUILDING_HIVE_TYPE_LOOKUP[name]
+            if hiveType == "hive" then
+                Universe.hives[newEntity.unit_number] = entityData.hive
+            else
+                local hiveData = entityData.hive
+                if hiveData then
+                    Universe.hiveData[newEntity.unit_number] = entityData.hive
+                    local adjustedHiveType = (
+                        (
+                            (hiveType == "spitter-spawner")
+                            or (hiveType == "biter-spawner")
+                        )
+                        and "nest"
+                    ) or hiveType
+                    hiveData[adjustedHiveType] = hiveData[adjustedHiveType] + 1
+                end
+            end
         end
         if remote.interfaces["kr-creep"] then
-            remote.call("kr-creep", "spawn_creep_at_position", surface, foundPosition or position, false, createdEntity.name)
+            remote.call(
+                "kr-creep",
+                "spawn_creep_at_position",
+                surface,
+                position,
+                false,
+                name
+            )
         end
     end
 end
@@ -616,6 +702,7 @@ end
 
 function Processor.init(universe)
     Universe = universe
+    Queries = universe.baseUtilsQueries
 end
 
 ProcessorG = Processor

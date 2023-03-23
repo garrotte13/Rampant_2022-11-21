@@ -19,7 +19,6 @@
 local colorUtils = require("prototypes/utils/ColorUtils")
 local smokeUtils = require("prototypes/utils/SmokeUtils")
 local swarmUtils = require("prototypes/SwarmUtils")
-local constants = require("libs/Constants")
 local collision_mask_util = require("collision-mask-util")
 
 -- imported functions
@@ -151,7 +150,4 @@ end
 
 if settings.startup["rampant--newEnemies"].value then
     swarmUtils.processFactions()
-    swarmUtils.generateSpawnerProxy(data.raw["unit-spawner"]["neutral-biter-spawner-v1-t"..constants.TIERS.."-rampant"].result_units)
-else
-    swarmUtils.generateSpawnerProxy(data.raw["unit-spawner"]["biter-spawner"].result_units)
 end

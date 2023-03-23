@@ -15,6 +15,8 @@ Version: 3.2.0
     - Added a mod setting to toggle the purple settler cloud
     - When enemies die there body parts can fill in water tiles. Can be disabled in mod settings.
     - Added base mutation history to prevent mutations to previously mutated factions. Configurable amount of history in Mod Settings.
+    - Hives now produce a single upper tier unit
+    - Hives now have a controlled expansion that doesn't use the unit-spawner non-unit spawning capabilities of the factorio engine
   Compatibility:
     - Added interface for adding and removing excluded surfaces
   Tweaks:
@@ -36,6 +38,10 @@ Version: 3.2.0
     - Use the enemy seed value instead of the map seed for puesdo random generating used by AI
     - Vengence settlers now cost ~3x of vengence squad
     - Enemy regional bases now are centered on the average of all chunks that are part of the base
+    - Set number of chunks to max evolution from 0,0 to 300
+    - Settler expansion cooldown is now different for every base instead of the same for all bases
+    - Changed reduction collision boxes of enemy entities to 25% instead of 50% and enemy units to 30% instead of 80%
+    - Changed mod settings default to false for shrink enemy buildings
   Bugfixes:
     - Removed layer-13 from projectiles
     - script_raised_built now looks for enemy faction and registers as needed
@@ -66,6 +72,8 @@ Version: 3.2.0
     - Reduced corpse and particle variation to optimize increased entity times due to high entity counts
     - Removed unneeded iterators
     - Moved map properties directly into chunk object
+    - Moved background chunk scanning under a mod setting for when mods don't raise events
+    - Pending upgrades are limited to 100 queued events for existing entity mutation and hive entity creation
   Framework:
     - Consolidated most libraries
 

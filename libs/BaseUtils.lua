@@ -32,9 +32,10 @@ local MapUtils = require("MapUtils")
 
 -- Constants
 
+local PENDING_UPGRADE_CREATION_THESHOLD = Constants.PENDING_UPGRADE_CREATION_THESHOLD
+
 local TIERS = Constants.TIERS
 local EVO_TO_TIER_MAPPING = Constants.EVO_TO_TIER_MAPPING
-local PROXY_ENTITY_LOOKUP = Constants.PROXY_ENTITY_LOOKUP
 local BUILDING_HIVE_TYPE_LOOKUP = Constants.BUILDING_HIVE_TYPE_LOOKUP
 local COST_LOOKUP = Constants.COST_LOOKUP
 local UPGRADE_LOOKUP = Constants.UPGRADE_LOOKUP
@@ -257,7 +258,42 @@ local function entityUpgrade(baseAlignment, tier, maxTier, originalEntity)
     return entity
 end
 
-function BaseUtils.findEntityUpgrade(baseAlignment, currentEvo, evoIndex, originalEntity, map, evolve)
+local function findEntityCreation(baseAlignment, evoIndex, position, map, entityType)
+    local tier = evoToTier(evoIndex, 5)
+    local maxTier = evoToTier(evoIndex, 4)
+
+    if (tier > maxTier) then
+        maxTier = tier
+    end
+
+    local chunk = getChunkByPosition(map, position)
+    if not entityType then
+        if Universe.random() < 0.5 then
+            entityType = "biter-spawner"
+        else
+            entityType = "spitter-spawner"
+        end
+    end
+    local roll = Universe.random()
+    local makeHive = (chunk ~= -1) and
+        (
+            (entityType == "biter-spawner") or (entityType == "spitter-spawner")
+        )
+        and
+        (
+            (
+                (roll <= 0.01)
+            )
+            or
+            (
+                (roll <= 0.210) and
+                chunk.resourceGenerator
+            )
+        )
+    return initialEntityUpgrade(baseAlignment, tier, maxTier, (makeHive and "hive"), entityType)
+end
+
+local function findEntityUpgrade(baseAlignment, currentEvo, evoIndex, originalEntity, map, evolve)
     local adjCurrentEvo = mMax(
         ((baseAlignment ~= ENEMY_ALIGNMENT_LOOKUP[originalEntity.name]) and 0) or currentEvo,
         0
@@ -289,8 +325,7 @@ function BaseUtils.findEntityUpgrade(baseAlignment, currentEvo, evoIndex, origin
             and
             (
                 (
-                    (roll <= 0.01) and
-                    not PROXY_ENTITY_LOOKUP[entityName]
+                    (roll <= 0.01)
                 )
                 or
                 (
@@ -389,15 +424,133 @@ function BaseUtils.canMigrate(base)
     return true
 end
 
-function BaseUtils.queueUpgrade(entity, base, disPos, evolve, register, timeDelay)
-    Universe.pendingUpgrades[entity.unit_number] = {
-        ["position"] = disPos,
-        ["register"] = register,
-        ["evolve"] = evolve,
-        ["base"] = base,
+function BaseUtils.queueUpgrade(entity, base, disPos, evolve, timeDelay)
+    local map = base.map
+    local baseAlignment = base.alignment
+    local position = disPos or entity.position
+
+    local pickedBaseAlignment
+    if baseAlignment[2] then
+        if Universe.random() < 0.75 then
+            pickedBaseAlignment = baseAlignment[2]
+        else
+            pickedBaseAlignment = baseAlignment[1]
+        end
+    else
+        pickedBaseAlignment = baseAlignment[1]
+    end
+
+    local currentEvo = entity.prototype.build_base_evolution_requirement or 0
+
+    local distance = mMin(
+        1,
+        euclideanDistancePoints(position.x, position.y, 0, 0) * BASE_DISTANCE_TO_EVO_INDEX
+    )
+    local evoIndex = mMax(distance, Universe.evolutionLevel)
+
+    local name = findEntityUpgrade(pickedBaseAlignment,
+                                   currentEvo,
+                                   evoIndex,
+                                   entity,
+                                   map,
+                                   evolve)
+
+    local entityName = entity.name
+    if name == entityName then
+        return
+    end
+
+    local surface = map.surface
+    if not evolve and Universe.printBaseUpgrades then
+        surface.print(
+            "["..base.id.."]:"..surface.name.." Upgrading "
+            .. entityName .. " to " .. name
+            .. " [gps=".. position.x ..",".. position.y .."]"
+        )
+    end
+
+    local unitNumber = entity.unit_number
+
+    position = surface.find_non_colliding_position(
+        name,
+        position,
+        8,
+        1,
+        true
+    )
+
+    Universe.pendingUpgrades[Universe.upgradeId] = {
+        ["position"] = position,
+        ["map"] = map,
+        ["name"] = name,
         ["entity"] = entity,
-        ["delayTLL"] = timeDelay
+        ["delayTLL"] = timeDelay,
+        ["hive"] = Universe.hives[unitNumber] or Universe.hiveData[unitNumber],
+        ["state"] = 1
     }
+    Universe.pendingUpgradesLength = Universe.pendingUpgradesLength + 1
+    Universe.upgradeId = Universe.upgradeId + 1
+end
+
+function BaseUtils.queueCreation(base, position, entityType, timeDelay, hiveData)
+    local map = base.map
+    local baseAlignment = base.alignment
+
+    if Universe.pendingUpgradesLength > PENDING_UPGRADE_CREATION_THESHOLD then
+        return
+    end
+
+    local pickedBaseAlignment
+    if baseAlignment[2] then
+        if Universe.random() < 0.75 then
+            pickedBaseAlignment = baseAlignment[2]
+        else
+            pickedBaseAlignment = baseAlignment[1]
+        end
+    else
+        pickedBaseAlignment = baseAlignment[1]
+    end
+
+    local distance = mMin(
+        1,
+        euclideanDistancePoints(position.x, position.y, 0, 0) * BASE_DISTANCE_TO_EVO_INDEX
+    )
+    local evoIndex = mMax(distance, Universe.evolutionLevel)
+
+    local name = findEntityCreation(
+        pickedBaseAlignment,
+        evoIndex,
+        position,
+        map,
+        entityType
+    )
+
+    if not name then
+        return
+    end
+
+    position = map.surface.find_non_colliding_position(
+        name,
+        position,
+        8,
+        1,
+        true
+    )
+
+    if not position then
+        return
+    end
+
+    Universe.pendingUpgrades[Universe.upgradeId] = {
+        ["position"] = position,
+        ["map"] = map,
+        ["name"] = name,
+        ["delayTLL"] = timeDelay,
+        ["hive"] = hiveData,
+        ["state"] = 2
+    }
+    Universe.pendingUpgradesLength = Universe.pendingUpgradesLength + 1
+    Universe.upgradeId = Universe.upgradeId + 1
 end
 
 local function pickMutationFromDamageType(damageType, roll, base)
@@ -523,9 +676,10 @@ function BaseUtils.upgradeBaseBasedOnDamage(base)
 end
 
 function BaseUtils.processBaseMutation(chunk, map, base)
-    if not base.alignment[1] or
-        (base.stateGeneration ~= BASE_GENERATION_STATE_ACTIVE) or
-        (Universe.random() >= 0.30)
+    if not base.alignment[1]
+        or (base.stateGeneration ~= BASE_GENERATION_STATE_ACTIVE)
+        or (Universe.random() >= 0.30)
+        or (Universe.pendingUpgradesLength > PENDING_UPGRADE_CREATION_THESHOLD)
     then
         return
     end
@@ -543,7 +697,7 @@ function BaseUtils.processBaseMutation(chunk, map, base)
             if (base.points >= cost) then
                 local position = entity.position
                 BaseUtils.modifyBaseSpecialPoints(base, -cost, "Scheduling Entity upgrade", position.x, position.y)
-                BaseUtils.queueUpgrade(entity, base, nil, false, true)
+                BaseUtils.queueUpgrade(entity, base, nil, false)
             end
         end
     end
@@ -578,8 +732,8 @@ function BaseUtils.createBase(map, chunk, tick)
     local base = {
         x = x,
         y = y,
-        totalX = x,
-        totalY = y,
+        totalX = 0,
+        totalY = 0,
         distanceThreshold = distanceThreshold * Universe.baseDistanceModifier,
         tick = tick,
         alignment = alignment,
@@ -722,12 +876,6 @@ function BaseUtils.planning(evolutionLevel)
                                                    Universe.expansionMaxSize)
     Universe.settlerWaveDeviation = (Universe.settlerWaveSize * 0.33)
 
-    Universe.settlerCooldown = randomTickDuration(Universe.random,
-                                                  Universe.expansionMinTime,
-                                                  mFloor(linearInterpolation(evolutionLevel ^ 1.66667,
-                                                                             Universe.expansionMaxTime,
-                                                                             Universe.expansionMinTime)))
-
     Universe.unitRefundAmount = AI_UNIT_REFUND * evolutionLevel
     Universe.kamikazeThreshold = NO_RETREAT_BASE_PERCENT + (evolutionLevel * NO_RETREAT_EVOLUTION_BONUS_MAX)
 end
@@ -740,7 +888,12 @@ local function processBase(base, tick)
     if (base.stateAI == BASE_AI_STATE_MIGRATING or base.stateAI == BASE_AI_STATE_SIEGE)
         and base.resetExpensionGroupsTick <= tick
     then
-        base.resetExpensionGroupsTick = tick + Universe.settlerCooldown
+        local randomDuration = randomTickDuration(Universe.random,
+                                                  Universe.expansionMinTime,
+                                                  mFloor(linearInterpolation(Universe.evolutionLevel ^ 1.66667,
+                                                                             Universe.expansionMaxTime,
+                                                                             Universe.expansionMinTime)))
+        base.resetExpensionGroupsTick = tick + randomDuration
         base.sentExpansionGroups = 0
     end
 

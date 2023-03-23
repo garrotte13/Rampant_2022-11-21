@@ -35,7 +35,7 @@ constants.TEMPERAMENT_RANGE_MAX = 10000
 constants.TEMPERAMENT_RANGE_MIN = -constants.TEMPERAMENT_RANGE_MAX
 constants.TEMPERAMENT_DIVIDER = 1 / (2 * constants.TEMPERAMENT_RANGE_MAX)
 
-constants.PROCESS_QUEUE_SIZE = 50
+constants.PROCESS_QUEUE_SIZE = 40
 constants.SCAN_QUEUE_SIZE = 2
 constants.RESOURCE_QUEUE_SIZE = 2
 constants.ENEMY_QUEUE_SIZE = 1
@@ -72,6 +72,7 @@ constants.DOUBLE_CHUNK_SIZE = constants.CHUNK_SIZE * 2
 constants.TRIPLE_CHUNK_SIZE = constants.CHUNK_SIZE * 3
 constants.HALF_CHUNK_SIZE = constants.CHUNK_SIZE / 2
 constants.QUARTER_CHUNK_SIZE = constants.HALF_CHUNK_SIZE / 2
+constants.EIGHTH_CHUNK_SIZE = constants.QUARTER_CHUNK_SIZE / 2
 
 constants.CHUNK_SIZE_DIVIDER = 1 / constants.CHUNK_SIZE
 
@@ -544,13 +545,11 @@ constants.FACTION_SET[#constants.FACTION_SET+1] = {
             majorResistances = {},
             minorResistances = {},
             acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
-            attributes = {"spawnDuringDays"},
+            attributes = {"spawnDuringDays", "singleUnit"},
             drops = {"nilArtifact"},
             buildSets = {
-                {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                {name="biter", tierStart=1, tierEnd=10},
+                {name="spitter", tierStart=1, tierEnd=10}
             }
         }
     }
@@ -630,13 +629,11 @@ if settings.startup["rampant--acidEnemy"].value then
                 majorResistances = {"acid"},
                 minorResistances = {"poison"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 drops = {"greenArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10},
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -708,14 +705,12 @@ if settings.startup["rampant--laserEnemy"].value then
                 type = "hive",
                 name = "hive",
                 majorResistances = {"laser", "electric"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"blueArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10},
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -793,14 +788,12 @@ if settings.startup["rampant--fireEnemy"].value then
                 name = "hive",
                 majorResistances = {"fire", "acid"},
                 minorResistances = {},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"redArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10},
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -857,13 +850,11 @@ if settings.startup["rampant--infernoEnemy"].value then
                 name = "hive",
                 majorResistances = {"fire", "acid"},
                 minorResistances = {},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"orangeArtifact"},
                 buildSets = {
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -926,13 +917,11 @@ if settings.startup["rampant--waspEnemy"].value then
             {
                 type = "hive",
                 name = "hive",
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"purpleArtifact"},
                 buildSets = {
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1004,13 +993,11 @@ if settings.startup["rampant--spawnerEnemy"].value then
             {
                 type = "hive",
                 name = "hive",
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"orangeArtifact"},
                 buildSets = {
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="spitter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1067,13 +1054,11 @@ if settings.startup["rampant--electricEnemy"].value then
                 name = "hive",
                 majorResistances = {"electric"},
                 minorResistances = {"laser"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"blueArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1131,13 +1116,11 @@ if settings.startup["rampant--physicalEnemy"].value then
                 name = "hive",
                 majorResistances = {"physical", "explosion"},
                 minorResistances = {"laser", "electric"},
-                attributes = {"highHealth", "bigger", "spawnDuringDays"},
+                attributes = {"highHealth", "bigger", "spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"redArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1196,13 +1179,11 @@ if settings.startup["rampant--trollEnemy"].value then
                 name = "hive",
                 minorResistances = {"physical", "explosion"},
                 majorWeaknesses = {"fire"},
-                attributes = {"highestHealth", "bigger", "highRegen","spawnDuringDays"},
+                attributes = {"highestHealth", "bigger", "highRegen","spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"greenArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1264,13 +1245,11 @@ if settings.startup["rampant--poisonEnemy"].value then
                 majorResistances = {"poison"},
                 minorResistances = {"fire"},
                 minorWeaknesses = {"electric", "explosion", "laser"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"greenArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1327,13 +1306,11 @@ if settings.startup["rampant--suicideEnemy"].value then
                 name = "hive",
                 majorResistances = {"explosion"},
                 minorResistances = {"poison"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"yellowArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1389,13 +1366,11 @@ if settings.startup["rampant--nuclearEnemy"].value then
                 name = "hive",
                 majorResistances = {"explosion"},
                 minorResistances = {"fire"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"yellowArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1451,13 +1426,11 @@ if settings.startup["rampant--energyThiefEnemy"].value then
                 type = "hive",
                 name = "hive",
                 majorResistances = {"electric", "laser"},
-                attributes = {"spawnDuringDays"},
+                attributes = {"spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"blueArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1536,14 +1509,12 @@ if settings.startup["rampant--fastEnemy"].value then
                 name = "hive",
                 majorResistances = {},
                 minorResistances = {"explosion"},
-                attributes = {"quickSpawning", "spawnDuringDays"},
+                attributes = {"quickSpawning", "spawnDuringDays", "singleUnit"},
                 acceptRate = {tierStart=2, tierEnd=10, tierChanceStart=0.001, tierChanceEnd=0.0175},
                 drops = {"purpleArtifact"},
                 buildSets = {
-                    {name="biter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="spitter-spawner", tierStart=1, tierEnd=10, tierChanceStart=0.15, tierChanceEnd=0.3},
-                    {name="turret", tierStart=1, tierEnd=10, tierChanceStart=0.8, tierChanceEnd=0.57},
-                    {name="hive", tierStart=2, tierEnd=10, tierChanceStart=0.002, tierChanceEnd=0.02}
+                    {name="spitter", tierStart=1, tierEnd=10},
+                    {name="biter", tierStart=1, tierEnd=10}
                 }
             }
         }
@@ -1558,6 +1529,8 @@ constants.HIVE_BUILDINGS_TYPES = {
     "biter-spawner",
     "hive"
 }
+
+constants.PENDING_UPGRADE_CREATION_THESHOLD = 100
 
 constants.VICTORY_SCENT_MULTIPLER = {}
 for x=1,9 do
@@ -1599,28 +1572,62 @@ for _,cost in pairs(constants.HIVE_BUILDINGS_COST) do
     end
 end
 
+constants.HIVE_MAX_NESTS = {
+    2,
+    3,
+    3,
+    4,
+    4,
+    4,
+    5,
+    5,
+    6,
+    6
+}
+constants.HIVE_MAX_TURRETS = {
+    4,
+    4,
+    5,
+    5,
+    6,
+    6,
+    7,
+    7,
+    8,
+    8
+}
+constants.HIVE_MAX_HIVES = {
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2
+}
+
 constants.FACTION_MUTATION_MAPPING = {}
 constants.FACTION_MUTATION_MAPPING["spitter-spawner"] = {"biter-spawner", "hive"}
 constants.FACTION_MUTATION_MAPPING["biter-spawner"] = {"spitter-spawner", "hive"}
 constants.FACTION_MUTATION_MAPPING["hive"] = {"utility", "biter-spawner", "spitter-spawner"}
-constants.FACTION_MUTATION_MAPPING["turret"] = {"trap"}
-constants.FACTION_MUTATION_MAPPING["trap"] = {"turret"}
+constants.FACTION_MUTATION_MAPPING["turret"] = {}
 constants.FACTION_MUTATION_MAPPING["utility"] = {"hive", "biter-spawner", "spitter-spawner"}
 
 function constants.gpsDebug(x, y, msg)
     game.print("[gps=".. x .. "," .. y .. "]" .. msg)
 end
 
-constants.MAX_HIVE_TTL = 2485
-constants.MIN_HIVE_TTL = 890
-constants.DEV_HIVE_TTL = 150
+constants.MAX_HIVE_TTL = 12400
+constants.MIN_HIVE_TTL = 4800
+constants.DEV_HIVE_TTL = 450
 
 local rg = mathUtils.xorRandom(settings.startup["rampant--enemySeed"].value)
 
 local alignmentSet = {}
 constants.EVOLUTION_TABLE_ALIGNMENT = alignmentSet -- evolutionTableAlignment
-local buildingSpaceLookup = {}
-constants.BUILDING_SPACE_LOOKUP = buildingSpaceLookup -- buildingSpaceLookup
 local enemyAlignmentLookup = {}
 constants.ENEMY_ALIGNMENT_LOOKUP = enemyAlignmentLookup -- enemyAlignmentLookup
 local upgradeLookup = {}
@@ -1631,8 +1638,8 @@ local costLookup = {}
 constants.COST_LOOKUP = costLookup --costLookup
 local buildingHiveTypeLookup = {}
 constants.BUILDING_HIVE_TYPE_LOOKUP = buildingHiveTypeLookup --buildingHiveTypeLookup
-local proxyEntityLookup = {}
-constants.PROXY_ENTITY_LOOKUP = proxyEntityLookup --proxyEntityLookup
+local buildingHiveTierLookup = {}
+constants.BUILDING_HIVE_TIER_LOOKUP = buildingHiveTierLookup --buildingHiveTierLookup
 local vanillaEntityLookup = {}
 constants.VANILLA_ENTITY_TYPE_LOOKUP = vanillaEntityLookup --vanillaEntityTypeLookup
 local entitySkipCountLookup = {}
@@ -1644,6 +1651,13 @@ buildingHiveTypeLookup["small-worm-turret"] = "turret"
 buildingHiveTypeLookup["medium-worm-turret"] = "turret"
 buildingHiveTypeLookup["big-worm-turret"] = "turret"
 buildingHiveTypeLookup["behemoth-worm-turret"] = "turret"
+
+buildingHiveTierLookup["biter-spawner"] = 1
+buildingHiveTierLookup["spitter-spawner"] = 1
+buildingHiveTierLookup["small-worm-turret"] = 1
+buildingHiveTierLookup["medium-worm-turret"] = 1
+buildingHiveTierLookup["big-worm-turret"] = 1
+buildingHiveTierLookup["behemoth-worm-turret"] = 1
 
 vanillaEntityLookup["biter-spawner"] = true
 vanillaEntityLookup["spitter-spawner"] = true
@@ -1728,14 +1742,9 @@ for i=1,#constants.FACTION_SET do
             do
                 local entry = faction.type .. "-" .. building.name .. "-v" .. v .. "-t" .. t .. "-rampant"
                 enemyAlignmentLookup[entry] = faction.type
-                local proxyEntity = "entity-proxy-" .. building.type .. "-t" .. t .. "-rampant"
-                proxyEntityLookup[proxyEntity] = true
-                buildingSpaceLookup[entry] = proxyEntity
                 costLookup[entry] = constants.HIVE_BUILDINGS_COST[building.type]
                 buildingHiveTypeLookup[entry] = building.type
-                if not buildingHiveTypeLookup[proxyEntity] then
-                    buildingHiveTypeLookup[proxyEntity] = building.type
-                end
+                buildingHiveTierLookup[entry] = t
                 variationSet[#variationSet+1] = entry
                 for _,unit in pairs(faction.units) do
                     if isMember(unit.attributes, "skipKillCount") then
