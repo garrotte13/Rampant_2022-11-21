@@ -15,8 +15,10 @@ Version: 3.2.0
     - Added a mod setting to toggle the purple settler cloud
     - When enemies die there body parts can fill in water tiles. Can be disabled in mod settings.
     - Added base mutation history to prevent mutations to previously mutated factions. Configurable amount of history in Mod Settings.
-    - Hives now produce a single upper tier unit
+    - Hives now produce two upper tier units
     - Hives now have a controlled expansion that doesn't use the unit-spawner non-unit spawning capabilities of the factorio engine
+    - Unit groups now path upto 4 chunks at a time
+    - Added biter squad compression with adjustable unit group size threshold for when to apply compression
   Compatibility:
     - Added interface for adding and removing excluded surfaces
   Tweaks:
@@ -42,6 +44,7 @@ Version: 3.2.0
     - Settler expansion cooldown is now different for every base instead of the same for all bases
     - Changed reduction collision boxes of enemy entities to 25% instead of 50% and enemy units to 30% instead of 80%
     - Changed mod settings default to false for shrink enemy buildings
+    - Initial peace mod settings now takes into account when the mod is added to the game
   Bugfixes:
     - Removed layer-13 from projectiles
     - script_raised_built now looks for enemy faction and registers as needed
@@ -63,6 +66,8 @@ Version: 3.2.0
     - Fixed /rampantSetAIState command could error if not provide correct parameters or didn't display a message if parameters were missing
     - Fixed the pheromone processing could skip the inner most chunks or the outer most chunks of a map
     - Fixed rallying units didn't use the base associated with the chunk for determining cost
+    - Fixed that vanilla unit groups didn't respect initial peace time
+    - Fixed attack squads required both player structures and player pheromone above threshold to switch into attack mode
   Optimizations:
     - Moved most constants out of global
     - Removed new enemy variations setting

@@ -18,7 +18,6 @@
 local ChunkPropertyUtils = require("libs/ChunkPropertyUtils")
 local UnitUtils = require("libs/UnitUtils")
 local BaseUtils = require("libs/BaseUtils")
-local MathUtils = require("libs/MathUtils")
 local Processor = require("libs/Processor")
 local Constants = require("libs/Constants")
 local MapUtils = require("libs/MapUtils")
@@ -51,12 +50,6 @@ local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
 
 local UNIT_DEATH_POINT_COST = Constants.UNIT_DEATH_POINT_COST
 
-local PENDING_UPGRADE_CREATION_THESHOLD = Constants.PENDING_UPGRADE_CREATION_THESHOLD
-
-local MAX_HIVE_TTL = Constants.MAX_HIVE_TTL
-local MIN_HIVE_TTL = Constants.MIN_HIVE_TTL
-local DEV_HIVE_TTL = Constants.DEV_HIVE_TTL
-
 local SETTLE_CLOUD_WARMUP = Constants.SETTLE_CLOUD_WARMUP
 
 -- imported functions
@@ -75,9 +68,6 @@ local nextMap = MapUtils.nextMap
 
 local processClouds = Processor.processClouds
 
-local distortPosition = MathUtils.distortPosition
-local linearInterpolation = MathUtils.linearInterpolation
-local gaussianRandomRangeRG = MathUtils.gaussianRandomRangeRG
 local prepMap = MapUtils.prepMap
 local activateMap = MapUtils.activateMap
 
@@ -140,6 +130,9 @@ local removeDrainPylons = ChunkPropertyUtils.removeDrainPylons
 local getDrainPylonPair = ChunkPropertyUtils.getDrainPylonPair
 
 local createDrainPylon = UnitUtils.createDrainPylon
+
+local compressSquad = Squad.compressSquad
+local decompressSquad = Squad.decompressSquad
 
 local isDrained = ChunkPropertyUtils.isDrained
 local setDrainedTick = ChunkPropertyUtils.setDrainedTick
@@ -214,7 +207,11 @@ local function hookEvents()
     end
 end
 
-local function initializeLibraries()
+local function initializeLibraries(addProperties)
+    Upgrade.init(Universe)
+    if addProperties then
+        Upgrade.addUniverseProperties()
+    end
     BaseUtils.init(Universe)
     Squad.init(Universe)
     BaseUtils.init(Universe)
@@ -226,6 +223,8 @@ end
 
 local function onLoad()
     Universe = global.universe
+
+    initializeLibraries()
 
     hookEvents()
 end
@@ -287,6 +286,7 @@ local function onModSettingsChange(event)
     Universe["legacyChunkScanning"] = settings.global["rampant--legacyChunkScanning"].value
 
     Universe["enabledPurpleSettlerCloud"] = settings.global["rampant--enabledPurpleSettlerCloud"].value
+    Universe["squadCompressionThreshold"] = settings.global["rampant--squadCompressionThreshold"].value
 
     Universe["AI_MAX_SQUAD_COUNT"] = settings.global["rampant--maxNumberOfSquads"].value
     Universe["AI_MAX_BUILDER_COUNT"] = settings.global["rampant--maxNumberOfBuilders"].value
@@ -296,7 +296,9 @@ local function onModSettingsChange(event)
 
     Universe["MAX_BASE_ALIGNMENT_HISTORY"] = settings.global["rampant--maxBaseAlignmentHistory"].value
 
-    Universe["initialPeaceTime"] = settings.global["rampant--initialPeaceTime"].value * TICKS_A_MINUTE
+    Universe["initialPeaceTime"] =
+        (settings.global["rampant--initialPeaceTime"].value * TICKS_A_MINUTE) + Universe.modAddedTick
+
     Universe["printAwakenMessage"] = settings.global["rampant--printAwakenMessage"].value
 
     Universe["minimumAdaptationEvolution"] = settings.global["rampant--minimumAdaptationEvolution"].value
@@ -305,10 +307,8 @@ local function onModSettingsChange(event)
 end
 
 local function onConfigChanged()
-    Upgrade.init(Universe)
     game.print("Rampant - Version 3.2.0")
-    Upgrade.addUniverseProperties()
-    initializeLibraries()
+    initializeLibraries(true)
     Upgrade.attempt()
 
     onModSettingsChange({setting="rampant--"})
@@ -458,8 +458,11 @@ local function onDeath(event)
             local group = entity.unit_group
             if group then
                 local squad = Universe.groupNumberToSquad[group.group_number]
-                if damageTypeName and squad then
-                    base = squad.base
+                if squad then
+                    decompressSquad(squad)
+                    if damageTypeName then
+                        base = squad.base
+                    end
                 end
             end
         end
@@ -722,6 +725,10 @@ local function onUnitGroupCreated(event)
     if group.is_script_driven then
         return
     end
+    if not Universe.awake then
+        group.destroy()
+        return
+    end
     local map = Universe.maps[surface.index]
     if not map then
         return
@@ -798,6 +805,9 @@ local function onGroupFinishedGathering(event)
     if not group.valid or (group.force.name ~= "enemy") then
         return
     end
+    if not Universe.awake then
+        group.destroy()
+    end
     local map = Universe.maps[group.surface.index]
     if not map then
         return
@@ -807,6 +817,7 @@ local function onGroupFinishedGathering(event)
     if squad then
         if squad.settler then
             if (Universe.builderCount <= Universe.AI_MAX_BUILDER_COUNT) then
+                compressSquad(squad)
                 squadDispatch(map, squad, event.tick)
             else
                 group.destroy()
@@ -819,6 +830,7 @@ local function onGroupFinishedGathering(event)
             end
 
             if (Universe.squadCount <= Universe.AI_MAX_SQUAD_COUNT) then
+                compressSquad(squad)
                 squadDispatch(map, squad, event.tick)
             else
                 group.destroy()
@@ -858,6 +870,7 @@ local function onGroupFinishedGathering(event)
         else
             Universe.squadCount = Universe.squadCount + 1
         end
+        compressSquad(squad)
         squadDispatch(map, squad, event.tick)
     end
 end
@@ -1067,6 +1080,7 @@ remote.add_interface("rampantTests",
 local function removeNewEnemies()
     game.print({"description.rampant--removeNewEnemies"})
     Universe.NEW_ENEMIES = false
+    game.forces.enemy.kill_all_units()
     for _,map in pairs(Universe.maps) do
         local surface = map.surface
         if surface.valid then
@@ -1129,6 +1143,7 @@ local function removeFaction(cmd)
         game.print({"description.rampant--removeFactionNames"})
         return
     end
+    game.forces.enemy.kill_all_units()
     factionNames = split(factionNames)
     for _,factionName in pairs(factionNames) do
         local found = false
