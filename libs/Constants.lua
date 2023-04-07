@@ -189,11 +189,12 @@ constants.PLAYER_GENERATOR_PERSISTANCE = 0.92
 
 -- chunk attributes
 
-constants.BASE_PHEROMONE = 1
-constants.PLAYER_PHEROMONE = 2
-constants.RESOURCE_PHEROMONE = 3
-constants.ENEMY_PHEROMONE = 4
-constants.CHUNK_TICK = 5
+constants.CHUNK_TICK = 1
+constants.BASE_PHEROMONE = 2
+constants.PLAYER_PHEROMONE = 3
+constants.RESOURCE_PHEROMONE = 4
+constants.ENEMY_PHEROMONE = 5
+constants.KAMIKAZE_PHEROMONE = 6
 
 -- constants.PATH_RATING = 7
 
@@ -207,6 +208,8 @@ constants.SQUAD_SETTLING = 5
 constants.SQUAD_BUILDING = 6
 
 -- Squad Related
+
+constants.COMPRESSION_COOLDOWN = 600
 
 constants.MINIMUM_EXPANSION_DISTANCE = 10
 
@@ -223,7 +226,8 @@ constants.GROUP_MERGE_DISTANCE = 28
 
 constants.MAX_PENALTY_BEFORE_PURGE = 36000
 
-constants.COMMAND_TIMEOUT = 30 * 60
+constants.COMMAND_TIMEOUT = 1 * constants.TICKS_A_MINUTE
+constants.BUILD_COMMAND_TIMEOUT = 7 * constants.TICKS_A_MINUTE
 
 -- player building pheromones
 

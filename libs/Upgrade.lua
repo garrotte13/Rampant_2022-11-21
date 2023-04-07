@@ -26,6 +26,13 @@ local Universe
 
 -- Constants
 
+local BASE_PHEROMONE = Constants.BASE_PHEROMONE
+local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
+local RESOURCE_PHEROMONE = Constants.RESOURCE_PHEROMONE
+local ENEMY_PHEROMONE = Constants.ENEMY_PHEROMONE
+local KAMIKAZE_PHEROMONE = Constants.KAMIKAZE_PHEROMONE
+local CHUNK_TICK = Constants.CHUNK_TICK
+
 local MINIMUM_EXPANSION_DISTANCE = Constants.MINIMUM_EXPANSION_DISTANCE
 local DEFINES_COMMAND_GROUP = defines.command.group
 local DEFINES_COMMAND_WANDER = defines.command.wander
@@ -309,8 +316,9 @@ local function addCommandSet()
     Universe.squadQueries.moveCommand = {
         type = DEFINES_COMMAND_GO_TO_LOCATION,
         destination = {0,0},
-        pathfind_flags = { cache = true },
-        distraction = DEFINES_DISTRACTION_BY_ENEMY
+        pathfind_flags = { cache = true, prefer_straight_paths = true },
+        distraction = DEFINES_DISTRACTION_BY_ENEMY,
+        radius = 5
     }
     Universe.squadQueries.settleCommand = {
         type = DEFINES_COMMAND_BUILD_BASE,
@@ -356,7 +364,6 @@ local function addCommandSet()
         type = DEFINES_COMMMAD_COMPOUND,
         structure_type = DEFINES_COMPOUND_COMMAND_RETURN_LAST,
         commands = {
-            Universe.squadQueries.stopCommand,
             Universe.squadQueries.fleeCommand,
             Universe.squadQueries.retreatCommand
         }
@@ -365,7 +372,7 @@ local function addCommandSet()
         type = DEFINES_COMMAND_GROUP,
         group = nil,
         distraction = DEFINES_DISTRACTION_BY_ANYTHING,
-        use_group_distraction = false
+        use_group_distraction = true
     }
     Universe.squadQueries.formCommand = {
         command = Universe.squadQueries.formGroupCommand,
@@ -384,12 +391,15 @@ local function addCommandSet()
         {chunk=-1, direction=-1}
     }
     Universe.squadQueries.renderText = {
-            target = nil,
-            text = "",
-            target_offset = {0, -10},
-            color = {r=1,g=1,b=1,a=0.5},
-            surface = nil,
-            scale = 5
+        target = nil,
+        text = "",
+        target_offset = {0, -10},
+        color = {r=1,g=1,b=1,a=0.5},
+        surface = nil,
+        scale = 5
+    }
+    Universe.squadQueries.createUnitGroup = {
+        position = {0,0}
     }
 end
 
@@ -511,8 +521,6 @@ function Upgrade.addUniverseProperties()
         Universe.maxPoints = 0
         Universe.maxOverflowPoints = 0
 
-        addCommandSet()
-
         Universe.bases = {}
 
         Universe.processBaseAIIterator = nil
@@ -523,13 +531,17 @@ function Upgrade.addUniverseProperties()
         Universe.pendingUpgradesLength = 0
         Universe.settlePurpleCloud = {}
     end
+    if global.universePropertyVersion < 2 then
+        global.universePropertyVersion = 2
+        addCommandSet()
+
+        Universe.hiveDataIterator = nil
+    end
 end
 
 function Upgrade.attempt()
     if not global.gameVersion then
         global.gameVersion = 1
-
-        game.forces.enemy.kill_all_units()
 
         Universe.evolutionLevel = game.forces.enemy.evolution_factor
 
@@ -551,6 +563,50 @@ function Upgrade.attempt()
         Universe.expansionDistanceDeviation = Universe.expansionMediumTargetDistance * 0.33
 
         Universe.modAddedTick = game.tick
+    end
+    if global.gameVersion < 2 then
+        global.gameVersion = 2
+        game.map_settings.max_failed_behavior_count = 999
+        for _, squad in pairs(Universe.groupNumberToSquad) do
+            squad.canBeCompressed = 0
+            squad.retreats = 0
+        end
+
+        game.forces.enemy.kill_all_units()
+
+        local lookup = {}
+        for _, map in pairs(Universe.maps) do
+            local entities = map.surface.find_entities_filtered({
+                    type = "unit-spawner",
+                    force = "enemy"
+            })
+            for i = 1, #entities do
+                lookup[entities[i].unit_number] = true
+            end
+            for _, chunk in pairs(map.processQueue) do
+                chunk[CHUNK_TICK] = 0
+                chunk[BASE_PHEROMONE] = 0
+                chunk[PLAYER_PHEROMONE] = 0
+                chunk[RESOURCE_PHEROMONE] = 0
+                chunk[ENEMY_PHEROMONE] = 0
+                chunk[KAMIKAZE_PHEROMONE] = 0
+            end
+        end
+
+        for entityId in pairs(Universe.activeHives) do
+            if not lookup[entityId] then
+                Universe.activeHives[entityId] = nil
+                Universe.hives[entityId] = nil
+            end
+        end
+        for entityId in pairs(Universe.hives) do
+            if not lookup[entityId] then
+                Universe.activeHives[entityId] = nil
+                Universe.hives[entityId] = nil
+            end
+        end
+
+	Universe.hiveIterator = nil
     end
 end
 

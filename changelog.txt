@@ -1,3 +1,42 @@
+Version: 3.3.0
+  Improvements:
+    - Re-added kamikaze squad state to prevent unit group dancing and then disbanding
+    - Squad compression can be triggered multiple times on a single group
+    - Squad should not compress when close to player structures
+  Tweaks:
+    - On group destruction all members are destroyed to prevent orphaned biters
+    - Increased radius of what pathing requires to complete a move path request
+    - Switched use_group_distraction to true on forming group
+    - Halved movement penalty violations before building, kamikaze, or dispanding unit groups
+    - Squads can retreat 3 times before switching to kamikaze
+    - Kamikaze squads will not retreat
+    - Reduced chance of squad becoming settler at 5% when hitting movement penalty violations
+  Bugfixes:
+    - Fixed occasionally compression number wouldn't appear on unit group
+    - Fixed squad compression could take place when attacking
+    - Fixed squad command timeout duration to account for 4 chunk pathing finding
+    - Fixed death pheromone could zero out a chunk for squad movement planning
+    - Fixed squad creation didn't take into account chunk pathing from nest to squad
+    - Fixed chunk being invalid on unit group finished gathering
+    - Fixed squad being able to teleport short distance when first assembling
+    - Fixed hives didn't properly decrement counts of entities spawned when spawned entites were destroyed
+    - Fixed hives didn't get unregistered properly
+    - Fixed squad retreating not working for existing unit groups
+
+---------------------------------------------------------------------------------------------------
+Version: 3.2.2
+  Bugfixes:
+    - Fixed invalid unit group in gathering when the AI hasn't awakened
+    - Fixed invalid reference to chunkToTurrets on removing map chunk
+
+---------------------------------------------------------------------------------------------------
+Version: 3.2.1
+  Contributions:
+    - Astorin provide RU translation for 3.2.0
+  Bugfixes:
+    - Squad compression setting would trigger squad compression even with -1 as mod setting
+    - Fixed base being nil in processVengence function
+
 ---------------------------------------------------------------------------------------------------
 Version: 3.2.0
   Contributions:
@@ -19,6 +58,7 @@ Version: 3.2.0
     - Hives now have a controlled expansion that doesn't use the unit-spawner non-unit spawning capabilities of the factorio engine
     - Unit groups now path upto 4 chunks at a time
     - Added biter squad compression with adjustable unit group size threshold for when to apply compression
+    - Entity structure upgrades and hive structure creation now use raise_built flag
   Compatibility:
     - Added interface for adding and removing excluded surfaces
   Tweaks:
@@ -70,7 +110,7 @@ Version: 3.2.0
     - Fixed attack squads required both player structures and player pheromone above threshold to switch into attack mode
   Optimizations:
     - Moved most constants out of global
-    - Removed new enemy variations setting
+    - Reduced new enemy variations setting
     - Moved neturalObject scan chunk to after a chunk is determined to be passable
     - Centralized base points manipulation and chat messaging (Dagothur)
     - Base point deductions for unit losses are now batched in 20 to reduce chat spam when using the print AI points to chat options (Dagothur)

@@ -49,6 +49,7 @@ local BASE_PHEROMONE = Constants.BASE_PHEROMONE
 local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
 local RESOURCE_PHEROMONE = Constants.RESOURCE_PHEROMONE
 local ENEMY_PHEROMONE = Constants.ENEMY_PHEROMONE
+local KAMIKAZE_PHEROMONE = Constants.KAMIKAZE_PHEROMONE
 local BUILDING_PHEROMONES = Constants.BUILDING_PHEROMONES
 
 local CHUNK_SIZE = Constants.CHUNK_SIZE
@@ -396,11 +397,12 @@ function ChunkUtils.createChunk(map, topX, topY)
         id = newChunkId(),
         map = map
     }
+    chunk[CHUNK_TICK] = 0
     chunk[BASE_PHEROMONE] = 0
     chunk[PLAYER_PHEROMONE] = 0
     chunk[RESOURCE_PHEROMONE] = 0
     chunk[ENEMY_PHEROMONE] = 0
-    chunk[CHUNK_TICK] = 0
+    chunk[KAMIKAZE_PHEROMONE] = 0
 
     return chunk
 end
@@ -518,6 +520,14 @@ local function unregisterHive(entityUnitNumber, hiveType)
     else
         local hiveData = Universe.hiveData[entityUnitNumber]
         if hiveData then
+            if Universe.hiveDataIterator == entityUnitNumber then
+                Universe.hiveDataIterator = nil
+            end
+            if not Universe.hives[hiveData.hiveId] then
+                Universe.hiveData[entityUnitNumber] = nil
+                return
+            end
+
             Universe.activeHives[hiveData.hiveId] = hiveData
             local adjustedHiveType = (
                 (
@@ -526,7 +536,7 @@ local function unregisterHive(entityUnitNumber, hiveType)
                 )
                 and "nest"
             ) or hiveType
-            hiveData[adjustedHiveType] = hiveData.nest - 1
+            hiveData[adjustedHiveType] = hiveData[adjustedHiveType] - 1
             if hiveData[adjustedHiveType] < 0 then
                 hiveData[adjustedHiveType] = 0
             end

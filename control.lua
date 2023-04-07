@@ -112,6 +112,7 @@ local scanResourceMap = Processor.scanResourceMap
 
 local processNests = Processor.processNests
 local processHives = Processor.processHives
+local cleanHivesData = Processor.cleanHivesData
 
 local rallyUnits = Squad.rallyUnits
 
@@ -131,7 +132,6 @@ local getDrainPylonPair = ChunkPropertyUtils.getDrainPylonPair
 
 local createDrainPylon = UnitUtils.createDrainPylon
 
-local compressSquad = Squad.compressSquad
 local decompressSquad = Squad.decompressSquad
 
 local isDrained = ChunkPropertyUtils.isDrained
@@ -307,7 +307,7 @@ local function onModSettingsChange(event)
 end
 
 local function onConfigChanged()
-    game.print("Rampant - Version 3.2.0")
+    game.print("Rampant - Version 3.3.0")
     initializeLibraries(true)
     Upgrade.attempt()
 
@@ -446,6 +446,7 @@ local function onDeath(event)
     local damageTypeName = event.damage_type and event.damage_type.name
     local chunk = getChunkByPosition(map, entityPosition)
     local base
+    local squad
 
     if entityForceName == "enemy" then
         if entityType ~= "unit" then
@@ -457,9 +458,9 @@ local function onDeath(event)
         else
             local group = entity.unit_group
             if group then
-                local squad = Universe.groupNumberToSquad[group.group_number]
+                squad = Universe.groupNumberToSquad[group.group_number]
                 if squad then
-                    decompressSquad(squad)
+                    decompressSquad(squad, tick)
                     if damageTypeName then
                         base = squad.base
                     end
@@ -495,8 +496,8 @@ local function onDeath(event)
                 if (getCombinedDeathGeneratorRating(chunk) < Universe.retreatThreshold) and cause and cause.valid then
                     retreatUnits(chunk,
                                  cause,
-                                 map,
                                  tick,
+                                 squad,
                                  (artilleryBlast and RETREAT_SPAWNER_GRAB_RADIUS) or RETREAT_GRAB_RADIUS)
                 end
             elseif BUILDING_HIVE_TYPE_LOOKUP[entity.name] or
@@ -519,8 +520,8 @@ local function onDeath(event)
                 if cause and cause.valid then
                     retreatUnits(chunk,
                                  cause,
-                                 map,
                                  tick,
+                                 nil,
                                  RETREAT_SPAWNER_GRAB_RADIUS)
                 end
             end
@@ -751,14 +752,15 @@ local function onUnitGroupCreated(event)
             (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
             (Universe.random() < 0.25)
 
-        if not settler and ( (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
-            group.destroy()
-            return
-        end
 
-        if not settler and (chunk[BASE_PHEROMONE] < 0.0001) and (chunk[PLAYER_PHEROMONE] < 0.0001) then
-            group.destroy()
-            return
+        if not settler then
+            if (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT)
+                or (chunk == -1)
+                or ((chunk[BASE_PHEROMONE] < 0.0001) and (chunk[PLAYER_PHEROMONE] < 0.0001))
+            then
+                group.destroy()
+                return
+            end
         end
 
         squad = createSquad(nil, map, group, settler, base)
@@ -779,14 +781,14 @@ local function onUnitGroupCreated(event)
             (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
             (Universe.random() < 0.25)
 
-        if not settler and ( (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) or (chunk == -1) ) then
-            group.destroy()
-            return
-        end
-
-        if not settler and chunk[BASE_PHEROMONE] < 0.0001 and chunk[PLAYER_PHEROMONE] < 0.0001 then
-            group.destroy()
-            return
+        if not settler then
+            if (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT)
+                or (chunk == -1)
+                or ((chunk[BASE_PHEROMONE] < 0.0001) and (chunk[PLAYER_PHEROMONE] < 0.0001))
+            then
+                group.destroy()
+                return
+            end
         end
 
         squad = createSquad(nil, map, group, settler, base)
@@ -807,6 +809,7 @@ local function onGroupFinishedGathering(event)
     end
     if not Universe.awake then
         group.destroy()
+        return
     end
     local map = Universe.maps[group.surface.index]
     if not map then
@@ -817,8 +820,7 @@ local function onGroupFinishedGathering(event)
     if squad then
         if squad.settler then
             if (Universe.builderCount <= Universe.AI_MAX_BUILDER_COUNT) then
-                compressSquad(squad)
-                squadDispatch(map, squad, event.tick)
+                squadDispatch(squad, event.tick)
             else
                 group.destroy()
             end
@@ -830,8 +832,7 @@ local function onGroupFinishedGathering(event)
             end
 
             if (Universe.squadCount <= Universe.AI_MAX_SQUAD_COUNT) then
-                compressSquad(squad)
-                squadDispatch(map, squad, event.tick)
+                squadDispatch(squad, event.tick)
             else
                 group.destroy()
             end
@@ -853,14 +854,14 @@ local function onGroupFinishedGathering(event)
             (Universe.builderCount < Universe.AI_MAX_VANILLA_BUILDER_COUNT) and
             (Universe.random() < 0.25)
 
-        if not settler and (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT) then
-            group.destroy()
-            return
-        end
-
-        if not settler and (chunk[BASE_PHEROMONE] < 0.0001) and (chunk[PLAYER_PHEROMONE] < 0.0001) then
-            group.destroy()
-            return
+        if not settler then
+            if (Universe.squadCount >= Universe.AI_MAX_VANILLA_SQUAD_COUNT)
+                or (chunk == -1)
+                or ((chunk[BASE_PHEROMONE] < 0.0001) and (chunk[PLAYER_PHEROMONE] < 0.0001))
+            then
+                group.destroy()
+                return
+            end
         end
 
         squad = createSquad(nil, map, group, settler, base)
@@ -870,8 +871,7 @@ local function onGroupFinishedGathering(event)
         else
             Universe.squadCount = Universe.squadCount + 1
         end
-        compressSquad(squad)
-        squadDispatch(map, squad, event.tick)
+        squadDispatch(squad, event.tick)
     end
 end
 
@@ -985,6 +985,7 @@ script.on_event(defines.events.on_tick,
                         cleanUpMapTables(tick)
                         planning(gameRef.forces.enemy.evolution_factor)
                         processHives(tick)
+                        cleanHivesData()
                     elseif (pick == 1) then
                         processPlayers(gameRef.connected_players, tick)
                     elseif (pick == 2) then

@@ -382,10 +382,12 @@ function Processor.processVengence()
         return
     end
     local base = chunk.base
-    if canMigrate(base) and (Universe.random() < 0.075) then
-        formVengenceSettler(chunk)
-    else
-        formVengenceSquad(chunk)
+    if base then
+        if canMigrate(base) and (Universe.random() < 0.075) then
+            formVengenceSettler(chunk)
+        else
+            formVengenceSquad(chunk)
+        end
     end
 end
 
@@ -536,6 +538,25 @@ function Processor.processHives(tick)
         queueCreation(base, position, "hive", timeDelay, hiveData)
     else
         Universe.activeHives[entityId] = nil
+    end
+end
+
+function Processor.cleanHivesData()
+    local entityId = Universe.hiveDataIterator
+    local hiveData
+    if not entityId then
+        entityId, hiveData = next(Universe.hiveData, nil)
+    else
+        hiveData = Universe.hiveData[entityId]
+    end
+    if not entityId then
+        Universe.hiveDataIterator = nil
+        return
+    end
+
+    Universe.hiveDataIterator = next(Universe.hiveData, entityId)
+    if not Universe.hives[hiveData.id] then
+        Universe.hiveData[entityId] = nil
     end
 end
 

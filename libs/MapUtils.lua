@@ -39,6 +39,7 @@ local BASE_PHEROMONE = Constants.BASE_PHEROMONE
 local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
 local RESOURCE_PHEROMONE = Constants.RESOURCE_PHEROMONE
 local ENEMY_PHEROMONE = Constants.ENEMY_PHEROMONE
+local KAMIKAZE_PHEROMONE = Constants.KAMIKAZE_PHEROMONE
 
 local CHUNK_TICK = Constants.CHUNK_TICK
 
@@ -323,7 +324,6 @@ function MapUtils.removeChunkFromMap(map, chunk)
     Universe.chunkToRallys[chunkId] = nil
     Universe.chunkToPassScan[chunkId] = nil
     Universe.chunkToNests[chunkId] = nil
-    Universe.chunkToTurrets[chunkId] = nil
     Universe.chunkToUtilities[chunkId] = nil
     Universe.chunkToHives[chunkId] = nil
     Universe.vengenceQueue[chunkId] = nil
@@ -332,6 +332,7 @@ function MapUtils.removeChunkFromMap(map, chunk)
     local base = chunk.base
     if base then
         base.chunkCount = base.chunkCount - 1
+        chunk.base = nil
     end
 
     if Universe.processNestIterator == chunkId then
@@ -575,6 +576,7 @@ function MapUtils.processPheromone(chunk, tick, player)
     local chunkDeath = getCombinedDeathGenerator(chunk)
     local chunkResource = -MAGIC_MAXIMUM_NUMBER
     local chunkEnemy = chunk[ENEMY_PHEROMONE]
+    local chunkKamikaze = chunk[KAMIKAZE_PHEROMONE]
 
     local chunkCount = 1
 
@@ -590,6 +592,10 @@ function MapUtils.processPheromone(chunk, tick, player)
                 chunkPlayer = chunkPlayer + neighbor[PLAYER_PHEROMONE]
                 chunkEnemy = chunkEnemy + neighbor[ENEMY_PHEROMONE]
                 chunkDeath = chunkDeath + getCombinedDeathGenerator(neighbor)
+                tempPheromone = neighbor[KAMIKAZE_PHEROMONE]
+                if chunkKamikaze < tempPheromone then
+                    chunkKamikaze = tempPheromone
+                end
                 tempPheromone = neighbor[BASE_PHEROMONE]
                 if chunkBase < tempPheromone then
                     chunkBase = tempPheromone
@@ -612,12 +618,12 @@ function MapUtils.processPheromone(chunk, tick, player)
 
     local chunkDeathRating = getCombinedDeathGeneratorRating(chunk) * getPathRating(chunk)
 
-    chunk[PLAYER_PHEROMONE] = chunkDeathRating * mMax(
+    chunk[PLAYER_PHEROMONE] = mMax(
         chunk.playerGenerator or 0,
         (chunkPlayer / chunkCount) * 0.98
                                                      )
 
-    chunk[BASE_PHEROMONE] = chunkDeathRating * mMax(
+    chunk[BASE_PHEROMONE] = mMax(
         chunk.playerBaseGenerator or 0,
         chunkBase * 0.9
                                                    )
@@ -626,6 +632,14 @@ function MapUtils.processPheromone(chunk, tick, player)
         enemyStructureCount * ENEMY_PHEROMONE_MULTIPLER,
         (chunkEnemy / chunkCount) * 0.9
                                                     )
+
+    chunk[KAMIKAZE_PHEROMONE] = mMax(
+        chunkKamikaze,
+        chunk[PLAYER_PHEROMONE] + chunk[BASE_PHEROMONE]
+    ) * 0.95
+
+    chunk[PLAYER_PHEROMONE] = chunk[PLAYER_PHEROMONE] * chunkDeathRating
+    chunk[BASE_PHEROMONE] = chunk[BASE_PHEROMONE] * chunkDeathRating
 
     local resourcePheromoneGenerator = chunk.resourceGenerator or 0
     if (resourcePheromoneGenerator > 0) then

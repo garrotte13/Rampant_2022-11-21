@@ -42,10 +42,14 @@ local BASE_AI_STATE_RAIDING = Constants.BASE_AI_STATE_RAIDING
 local MAGIC_MAXIMUM_NUMBER = Constants.MAGIC_MAXIMUM_NUMBER
 local MINIMUM_EXPANSION_DISTANCE = Constants.MINIMUM_EXPANSION_DISTANCE
 local COMMAND_TIMEOUT = Constants.COMMAND_TIMEOUT
+local BUILD_COMMAND_TIMEOUT = Constants.BUILD_COMMAND_TIMEOUT
 local PLAYER_PHEROMONE = Constants.PLAYER_PHEROMONE
 local BASE_PHEROMONE = Constants.BASE_PHEROMONE
 local ENEMY_PHEROMONE = Constants.ENEMY_PHEROMONE
+local KAMIKAZE_PHEROMONE = Constants.KAMIKAZE_PHEROMONE
 local RESOURCE_PHEROMONE = Constants.RESOURCE_PHEROMONE
+
+local COMPRESSION_COOLDOWN = Constants.COMPRESSION_COOLDOWN
 
 local HALF_CHUNK_SIZE = Constants.HALF_CHUNK_SIZE
 
@@ -76,13 +80,15 @@ local AI_SQUAD_COST = Constants.AI_SQUAD_COST
 local AI_SETTLER_COST = Constants.AI_SETTLER_COST
 local AI_VENGENCE_SQUAD_COST = Constants.AI_VENGENCE_SQUAD_COST
 local AI_VENGENCE_SETTLER_COST = Constants.AI_VENGENCE_SETTLER_COST
-local CHUNK_ALL_DIRECTIONS = Constants.CHUNK_ALL_DIRECTIONS
+
+local ATTACKING_DISTRACTION = defines.group_state.attacking_distraction
+local ATTACKING_TARGET = defines.group_state.attacking_target
+local GATHERING = defines.group_state.gathering
 
 -- imported functions
 
 local setPositionInQuery = Utils.setPositionInQuery
 
-local getPassable = ChunkPropertyUtils.getPassable
 local getRallyTick = ChunkPropertyUtils.getRallyTick
 local setRallyTick = ChunkPropertyUtils.setRallyTick
 local modifyBaseUnitPoints = BaseUtils.modifyBaseUnitPoints
@@ -121,8 +127,7 @@ local euclideanDistanceNamed = MathUtils.euclideanDistanceNamed
 
 -- module code
 local function scoreRetreatLocation(neighborChunk)
-    return (-neighborChunk[BASE_PHEROMONE] +
-            -(neighborChunk[PLAYER_PHEROMONE] * PLAYER_PHEROMONE_MULTIPLER) +
+    return (-neighborChunk[KAMIKAZE_PHEROMONE] +
             -((neighborChunk.playerBaseGenerator or 0) * 1000))
 end
 
@@ -161,6 +166,23 @@ local function scoreSiegeLocation(neighborChunk)
     return score, preferred
 end
 
+local function scoreSiegeKamikazeLocation(neighborChunk)
+    local preferred = false
+    if (
+        not neighborChunk.playerBaseGenerator
+        and not neighborChunk.playerGenerator
+    )
+    then
+        preferred = true
+    end
+    local settle = neighborChunk[KAMIKAZE_PHEROMONE]
+        + neighborChunk[RESOURCE_PHEROMONE] * 0.5
+
+    local score = settle - neighborChunk[ENEMY_PHEROMONE]
+
+    return score, preferred
+end
+
 local function scoreAttackLocation(neighborChunk)
     local preferred = false
     if (
@@ -172,6 +194,22 @@ local function scoreAttackLocation(neighborChunk)
     end
     local damage = neighborChunk[BASE_PHEROMONE] +
         (neighborChunk[PLAYER_PHEROMONE] * PLAYER_PHEROMONE_MULTIPLER)
+    if preferred then
+        damage = damage * 2
+    end
+    return damage, preferred
+end
+
+local function scoreAttackKamikazeLocation(neighborChunk)
+    local preferred = false
+    if (
+        neighborChunk.playerBaseGenerator
+        or neighborChunk.playerGenerator
+    )
+    then
+        preferred = true
+    end
+    local damage = neighborChunk[KAMIKAZE_PHEROMONE]
     if preferred then
         damage = damage * 2
     end
@@ -229,16 +267,26 @@ local function addMovementPenalty(squad, chunk)
         local penalty = penalties[i]
         if (penalty.c.id == chunk.id) then
             penalty.v = penalty.v + 1
-            if penalty.v >= 15 then
-                if Universe.enabledMigration and
-                    (Universe.builderCount < Universe.AI_MAX_BUILDER_COUNT) then
+            if penalty.v >= 7 then
+                if Universe.enabledMigration
+                    and (Universe.random() < 0.05)
+                    and (Universe.builderCount < Universe.AI_MAX_BUILDER_COUNT)
+                then
                     squad.settler = true
                     squad.originPosition.x = squad.group.position.x
                     squad.originPosition.y = squad.group.position.y
                     squad.maxDistance = calculateSettlerMaxDistance()
 
                     squad.status = SQUAD_SETTLING
+                elseif not squad.kamikaze then
+                    squad.kamikaze = true
+                    squad.penalties = {}
                 else
+                    for _, entity in pairs(squad.group.members) do
+                        if entity.valid then
+                            entity.destroy()
+                        end
+                    end
                     squad.group.destroy()
                 end
             end
@@ -254,20 +302,31 @@ local function addMovementPenalty(squad, chunk)
                   c = chunk })
 end
 
-function Squad.compressSquad(squad)
-    if not squad.canBeCompressed then
+local function compressSquad(squad, tick)
+    if squad.compressionSet
+        or (Universe.squadCompressionThreshold == -1)
+        or (squad.canBeCompressed >= tick)
+    then
         return
     end
 
-    local compressionSet = {}
     local group = squad.group
-    local members = group.members
-    if #members < Universe.squadCompressionThreshold then
-        squad.canBeCompressed = false
+    local groupState = group.state
+    if (groupState == ATTACKING_DISTRACTION)
+        or (groupState == ATTACKING_TARGET)
+        or (groupState == GATHERING)
+        or (squad.status == SQUAD_BUILDING)
+    then
         return
     end
+    local members = group.members
+    if (#members <= Universe.squadCompressionThreshold) then
+        return
+    end
+    local compressionSet = {}
     local compressedTotal = 0
     local totalTypes = 0
+    local entityToTag
     for _, entity in pairs(members) do
         local entityName = entity.name
         local count = compressionSet[entityName]
@@ -275,8 +334,10 @@ function Squad.compressSquad(squad)
             totalTypes = totalTypes + 1
             if totalTypes > 6 then
                 entity.destroy()
+                compressedTotal = compressedTotal + 1
                 compressionSet[entityName] = 1
             else
+                entityToTag = entity
                 compressionSet[entityName] = 0
             end
         else
@@ -288,13 +349,14 @@ function Squad.compressSquad(squad)
     local query = Queries.renderText
     query.surface = group.surface
     query.text = compressedTotal
-    query.target = members[1]
+    query.target = entityToTag
     squad.compressionText = rendering.draw_text(query)
     squad.compressionSet = compressionSet
+    squad.compressedTotal = compressedTotal
     squad.canBeCompressed = false
 end
 
-function Squad.decompressSquad(squad)
+function Squad.decompressSquad(squad, tick)
     if not squad.compressionSet then
         return
     end
@@ -315,6 +377,7 @@ function Squad.decompressSquad(squad)
     end
     rendering.destroy(squad.compressionText)
     squad.compressionSet = nil
+    squad.canBeCompressed = tick + COMPRESSION_COOLDOWN
 end
 
 --[[
@@ -390,7 +453,7 @@ local function scoreNeighbors(map, chunk, neighborDirectionChunks, scoreFunction
     return SearchPath
 end
 
-local function settleMove(squad)
+local function settleMove(squad, tick)
     local group = squad.group
     local map = squad.map
 
@@ -400,6 +463,9 @@ local function settleMove(squad)
     local scoreFunction = scoreResourceLocation
     if (squad.type == BASE_AI_STATE_SIEGE) then
         scoreFunction = scoreSiegeLocation
+        if squad.kamikaze then
+            scoreFunction = scoreSiegeKamikazeLocation
+        end
     end
     local squadChunk = squad.chunk
     if squadChunk ~= -1 then
@@ -429,7 +495,7 @@ local function settleMove(squad)
             )
         )
     then
-        Squad.decompressSquad(squad)
+        Squad.decompressSquad(squad, tick)
 
         position = findMovementPosition(surface, groupPosition) or groupPosition
 
@@ -443,6 +509,7 @@ local function settleMove(squad)
         setPositionInCommand(cmd, position)
 
         squad.status = SQUAD_BUILDING
+        squad.commandTick = tick + BUILD_COMMAND_TIMEOUT
 
         group.set_command(cmd)
         return
@@ -504,7 +571,8 @@ local function settleMove(squad)
     if lastChunk ~= 4 then
         cmd = Queries.settleCommand
         squad.status = SQUAD_BUILDING
-        Squad.decompressSquad(squad)
+        squad.commandTick = tick + BUILD_COMMAND_TIMEOUT
+        Squad.decompressSquad(squad, tick)
         if squad.kamikaze then
             cmd.distraction = DEFINES_DISTRACTION_NONE
         else
@@ -524,7 +592,7 @@ local function settleMove(squad)
     group.set_command(cmd)
 end
 
-local function attackMove(squad)
+local function attackMove(squad, tick)
     local group = squad.group
 
     local groupPosition = group.position
@@ -544,6 +612,9 @@ local function attackMove(squad)
     end
 
     local attackScorer = scoreAttackLocation
+    if squad.kamikaze then
+        attackScorer = scoreAttackKamikazeLocation
+    end
 
     squad.frenzy = (squad.frenzy and (euclideanDistanceNamed(groupPosition, squad.frenzyPosition) < 100))
     local searchPath = scoreNeighbors(
@@ -588,7 +659,7 @@ local function attackMove(squad)
     end
 
     if attack then
-        Squad.decompressSquad(squad)
+        Squad.decompressSquad(squad, tick)
         cmd = Queries.attackCommand
 
         if not squad.rabid then
@@ -612,16 +683,16 @@ local function attackMove(squad)
     group.set_command(cmd)
 end
 
-local function buildMove(map, squad)
+local function buildMove(squad, tick)
     local group = squad.group
     local groupPosition = group.position
-    local position = findMovementPosition(map.surface, groupPosition) or groupPosition
+    local position = findMovementPosition(squad.map.surface, groupPosition) or groupPosition
 
     setPositionInCommand(Queries.settleCommand, position)
 
-    Squad.decompressSquad(squad)
+    Squad.decompressSquad(squad, tick)
 
-    group.set_command(Queries.compoundSettleCommand)
+    group.set_command(Queries.settleCommand)
 end
 
 function Squad.cleanSquads(tick)
@@ -668,53 +739,64 @@ function Squad.cleanSquads(tick)
             squads[groupId] = nil
         elseif (group.state == 4) then
             squad.wanders = 0
-            Squad.squadDispatch(squad.map, squad, tick)
+            Squad.squadDispatch(squad, tick)
+            if group.valid then
+                compressSquad(squad, tick)
+            end
         elseif (squad.commandTick and (squad.commandTick < tick)) then
             if squad.wanders > 5 then
+                for _, entity in pairs(squad.group.members) do
+                    if entity.valid then
+                        entity.destroy()
+                    end
+                end
                 squad.group.destroy()
             else
                 squad.wanders = squad.wanders + 1
-                local cmd = Queries.wander2Command
-                squad.commandTick = tick + COMMAND_TIMEOUT
-                group.set_command(cmd)
-                group.start_moving()
+                if squad.status == SQUAD_BUILDING then
+                    squad.commandTick = tick + BUILD_COMMAND_TIMEOUT
+                else
+                    squad.commandTick = tick + COMMAND_TIMEOUT
+                end
             end
         end
     end
 end
 
-function Squad.squadDispatch(map, squad, tick)
+function Squad.squadDispatch(squad, tick)
     local group = squad.group
-    if group and group.valid then
-        local status = squad.status
-        if (status == SQUAD_RAIDING) then
-            squad.commandTick = tick + COMMAND_TIMEOUT
-            attackMove(squad)
-        elseif (status == SQUAD_SETTLING) then
-            squad.commandTick = tick + COMMAND_TIMEOUT
-            settleMove(squad)
-        elseif (status == SQUAD_RETREATING) then
-            squad.commandTick = tick + COMMAND_TIMEOUT
-            if squad.settlers then
-                squad.status = SQUAD_SETTLING
-                settleMove(squad)
-            else
-                squad.status = SQUAD_RAIDING
-                attackMove(squad)
-            end
-        elseif (status == SQUAD_BUILDING) then
-            squad.commandTick = tick + COMMAND_TIMEOUT
-            removeSquadFromChunk(squad)
-            buildMove(map, squad)
-        elseif (status == SQUAD_GUARDING) then
-            squad.commandTick = tick + COMMAND_TIMEOUT
-            if squad.settlers then
-                squad.status = SQUAD_SETTLING
-                settleMove(squad)
-            else
-                squad.status = SQUAD_RAIDING
-                attackMove(squad)
-            end
+    if not (group and group.valid) then
+        return
+    end
+
+    local status = squad.status
+    if (status == SQUAD_RAIDING) then
+        squad.commandTick = tick + COMMAND_TIMEOUT
+        attackMove(squad, tick)
+    elseif (status == SQUAD_SETTLING) then
+        squad.commandTick = tick + COMMAND_TIMEOUT
+        settleMove(squad, tick)
+    elseif (status == SQUAD_RETREATING) then
+        squad.commandTick = tick + COMMAND_TIMEOUT
+        if squad.settlers then
+            squad.status = SQUAD_SETTLING
+            settleMove(squad, tick)
+        else
+            squad.status = SQUAD_RAIDING
+            attackMove(squad, tick)
+        end
+    elseif (status == SQUAD_BUILDING) then
+        squad.commandTick = tick + BUILD_COMMAND_TIMEOUT
+        removeSquadFromChunk(squad)
+        buildMove(squad, tick)
+    elseif (status == SQUAD_GUARDING) then
+        squad.commandTick = tick + COMMAND_TIMEOUT
+        if squad.settlers then
+            squad.status = SQUAD_SETTLING
+            settleMove(squad, tick)
+        else
+            squad.status = SQUAD_RAIDING
+            attackMove(squad, tick)
         end
     end
 end
@@ -769,34 +851,21 @@ local function scoreNeighborsForRetreat(chunk, neighborDirectionChunks, scoreFun
     return highestChunk, highestDirection, nextHighestChunk, nextHighestDirection
 end
 
-local function findNearbyRetreatingSquad(map, chunk)
-    if chunk.squads then
-        for _,squad in pairs(chunk.squads) do
-            local unitGroup = squad.group
-            if (squad.status == SQUAD_RETREATING) and unitGroup and unitGroup.valid then
-                return squad
-            end
+function Squad.retreatUnits(chunk, cause, tick, existingSquad, radius)
+    if (tick - getRetreatTick(chunk) > COOLDOWN_RETREAT)
+        and (getEnemyStructureCount(chunk) == 0)
+    then
+
+        if existingSquad and
+            (
+                (not existingSquad.group.valid)
+                or existingSquad.kamikaze
+            )
+        then
+            return
         end
-    end
 
-    local neighbors = getNeighborChunks(map, chunk.x, chunk.y)
-
-    for i=1,#neighbors do
-        local neighbor = neighbors[i]
-        if (neighbor ~= -1) and neighbor.squads then
-            for _,squad in pairs(neighbor.squads) do
-                local unitGroup = squad.group
-                if (squad.status == SQUAD_RETREATING) and unitGroup and unitGroup.valid then
-                    return squad
-                end
-            end
-        end
-    end
-    return nil
-end
-
-function Squad.retreatUnits(chunk, cause, map, tick, radius)
-    if (tick - getRetreatTick(chunk) > COOLDOWN_RETREAT) and (getEnemyStructureCount(chunk) == 0) then
+        local map = chunk.map
 
         setRetreatTick(chunk, tick)
         local exitPath,exitDirection,
@@ -843,58 +912,69 @@ function Squad.retreatUnits(chunk, cause, map, tick, radius)
             return
         end
 
-        local newSquad = findNearbyRetreatingSquad(map, exitPath)
         local created = false
-
-        if not newSquad then
-            if (Universe.squadCount < Universe.AI_MAX_SQUAD_COUNT) then
-                created = true
-                local base = findNearbyBase(chunk)
-                if not base then
-                    return
-                end
-                newSquad = Squad.createSquad(position, map, nil, false, base)
-            else
+        if not existingSquad then
+            created = true
+            if (Universe.squadCount >= Universe.AI_MAX_SQUAD_COUNT) then
                 return
             end
-        end
 
-        Queries.fleeCommand.from = cause
-        Queries.retreatCommand.group = newSquad.group
-
-        Queries.formRetreatCommand.unit_search_distance = radius
-
-        local foundUnits = surface.set_multi_command(Queries.formRetreatCommand)
-
-        if (foundUnits == 0) then
-            if created then
-                newSquad.group.destroy()
+            local base = findNearbyBase(chunk)
+            if not base then
+                return
             end
-            return
+            existingSquad = Squad.createSquad(position, map, nil, false, base)
+
+            Queries.fleeCommand.from = cause
+            Queries.retreatCommand.group = existingSquad.group
+
+            Queries.formRetreatCommand.unit_search_distance = radius
+
+            local foundUnits = surface.set_multi_command(Queries.formRetreatCommand)
+
+            if (foundUnits == 0) then
+                if created then
+                    existingSquad.group.destroy()
+                end
+                return
+            end
+
+            if created then
+                Universe.groupNumberToSquad[existingSquad.groupNumber] = existingSquad
+                Universe.squadCount = Universe.squadCount + 1
+            end
+        else
+            Queries.moveCommand.distraction = DEFINES_DISTRACTION_NONE
+            setPositionInCommand(Queries.moveCommand, position)
+            existingSquad.group.set_command(Queries.moveCommand)
         end
 
-        if created then
-            Universe.groupNumberToSquad[newSquad.groupNumber] = newSquad
-            Universe.squadCount = Universe.squadCount + 1
+        existingSquad.retreats = existingSquad.retreats + 1
+        if (existingSquad.retreats >= 3) then
+            existingSquad.kamikaze = true
         end
 
-        newSquad.status = SQUAD_RETREATING
+        existingSquad.status = SQUAD_RETREATING
 
-        addSquadToChunk(chunk, newSquad)
+        addSquadToChunk(chunk, existingSquad)
 
-        newSquad.frenzy = true
-        local squadPosition = newSquad.group.position
-        newSquad.frenzyPosition.x = squadPosition.x
-        newSquad.frenzyPosition.y = squadPosition.y
+        existingSquad.frenzy = true
+        existingSquad.frenzyPosition.x = position.x
+        existingSquad.frenzyPosition.y = position.y
     end
 end
 
 function Squad.createSquad(position, map, group, settlers, base)
-    local unitGroup = group or map.surface.create_unit_group({position=position})
+    local unitGroup = group
+    if not unitGroup then
+        local query = Queries.createUnitGroup
+        setPositionInQuery(query, position)
+        unitGroup = map.surface.create_unit_group(query)
+    end
 
     local squad = {
         group = unitGroup,
-        canBeCompressed = true,
+        canBeCompressed = 0,
         compressionSet = nil,
         compressionText = nil,
         status = SQUAD_GUARDING,
@@ -902,6 +982,7 @@ function Squad.createSquad(position, map, group, settlers, base)
         penalties = {},
         base = base,
         type = base.stateAI,
+        retreats = 0,
         frenzy = false,
         map = map,
         wanders = 0,
@@ -986,8 +1067,7 @@ local function scoreUnitGroupLocation(neighborChunk)
 end
 
 local function validUnitGroupLocation(neighborChunk)
-    return (getPassable(neighborChunk) == CHUNK_ALL_DIRECTIONS) and
-        (not neighborChunk.nestCount)
+    return (not neighborChunk.nestCount)
 end
 
 local function visitPattern(o, cX, cY, distance)
@@ -1039,7 +1119,10 @@ local function scoreNeighborsForFormation(chunk, validFunction, scoreFunction)
     local neighborChunks = getNeighborChunks(chunk.map, chunk.x, chunk.y)
     for x=1,8 do
         local neighborChunk = neighborChunks[x]
-        if (neighborChunk ~= -1) and validFunction(neighborChunk) then
+        if (neighborChunk ~= -1)
+            and canMoveChunkDirection(x, chunk, neighborChunk)
+            and validFunction(neighborChunk)
+        then
             local score = scoreFunction(neighborChunk)
             if (score > highestScore) then
                 highestScore = score
@@ -1174,8 +1257,6 @@ local function deploySquad(name, chunk, cost, vengence, attacker)
     end
 
     squad.rabid = Universe.random() < 0.03
-
-    Squad.compressSquad(squad)
 
     Universe.groupNumberToSquad[squad.groupNumber] = squad
     modifyBaseUnitPoints(base, -cost, name, squadPosition.x, squadPosition.y)
