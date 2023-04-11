@@ -307,7 +307,7 @@ local function onModSettingsChange(event)
 end
 
 local function onConfigChanged()
-    game.print("Rampant - Version 3.3.0")
+    game.print("Rampant - Version 3.3.1")
     initializeLibraries(true)
     Upgrade.attempt()
 
@@ -390,9 +390,7 @@ local function onBuild(event)
     if entity.valid then
         local entityForceName = entity.force.name
         if entityForceName == "enemy" then
-            if BUILDING_HIVE_TYPE_LOOKUP[entity.name] then
-                onEnemyBaseBuild(entity, event.tick)
-            end
+            onEnemyBaseBuild(entity, event.tick)
         else
             local map = Universe.maps[entity.surface.index]
             if not map then
@@ -457,7 +455,7 @@ local function onDeath(event)
             end
         else
             local group = entity.unit_group
-            if group then
+            if group and group.valid then
                 squad = Universe.groupNumberToSquad[group.group_number]
                 if squad then
                     decompressSquad(squad, tick)
@@ -537,7 +535,7 @@ local function onDeath(event)
                 if cause and cause.type == "unit" then
                     local group = cause.unit_group
                     if group and group.valid then
-                        local squad = Universe.groupNumberToSquad[group.group_number]
+                        squad = Universe.groupNumberToSquad[group.group_number]
                         if squad then
                             base = squad.base
                         end

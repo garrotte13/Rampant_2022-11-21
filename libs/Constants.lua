@@ -136,7 +136,7 @@ constants.BASE_GENERATION_STATE_ACTIVE = 1
 -- constants.BASE_AI_STATE_MUTATE = 3
 
 constants.ACTIVE_NESTS_PER_AGGRESSIVE_GROUPS = 30
-constants.ALL_NESTS_PER_EXPANSION_GROUPS = 150
+constants.ALL_NESTS_PER_EXPANSION_GROUPS = 700
 constants.AGGRESSIVE_CAN_ATTACK_WAIT_MIN_DURATION = 0.5
 constants.AGGRESSIVE_CAN_ATTACK_WAIT_MAX_DURATION = 3
 
@@ -1622,6 +1622,10 @@ constants.FACTION_MUTATION_MAPPING["utility"] = {"hive", "biter-spawner", "spitt
 
 function constants.gpsDebug(x, y, msg)
     game.print("[gps=".. x .. "," .. y .. "]" .. msg)
+end
+
+function constants.gpsSurfaceDebug(surface, x, y, msg)
+    surface.print("[gps=".. x .. "," .. y .. "]" .. msg)
 end
 
 constants.MAX_HIVE_TTL = 12400

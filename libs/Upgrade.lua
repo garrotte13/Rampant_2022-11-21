@@ -294,12 +294,13 @@ local function addCommandSet()
     }
 
     -- ppu
-    Universe.baseUtilsQueries = {}
-    Universe.baseUtilsQueries.createEntityQuery = {
+    Universe.processorQueries = {}
+    Universe.processorQueries.createEntityQuery = {
         name = "",
         position = {0,0},
         raise_built = true
     }
+    Universe.processorQueries.targetPosition = {0,0}
 
     Universe.squadQueries = {}
     Universe.squadQueries.targetPosition = {0,0}
@@ -338,14 +339,10 @@ local function addCommandSet()
         radius = TRIPLE_CHUNK_SIZE*2,
         ticks_to_wait = 2 * 60
     }
-    Universe.squadQueries.stopCommand = {
-        type = DEFINES_COMMAND_STOP
-    }
     Universe.squadQueries.compoundSettleCommand = {
         type = DEFINES_COMMMAD_COMPOUND,
         structure_type = DEFINES_COMPOUND_COMMAND_RETURN_LAST,
         commands = {
-            Universe.squadQueries.wonder2Command,
             Universe.squadQueries.settleCommand
         }
     }
@@ -432,7 +429,7 @@ function Upgrade.setCommandForces(npcForces, enemyForces)
 end
 
 function Upgrade.addUniverseProperties()
-    if not global.universePropertyVersion then
+    if not global.universePropertyVersion or global.version then
         for key in pairs(global) do
             if key ~= "universe" then
                 global[key] = nil
@@ -442,6 +439,7 @@ function Upgrade.addUniverseProperties()
         for key in pairs(Universe) do
             Universe[key] = nil
         end
+
         global.universePropertyVersion = 0
     end
 
@@ -465,7 +463,6 @@ function Upgrade.addUniverseProperties()
         Universe.attackWaveDeviation = 0
         Universe.attackWaveUpperBound = 0
         Universe.unitRefundAmount = 0
-        Universe.regroupIndex = 1
 
         Universe.kamikazeThreshold = 0
         Universe.attackWaveLowerBound = 1
@@ -533,9 +530,11 @@ function Upgrade.addUniverseProperties()
     end
     if global.universePropertyVersion < 2 then
         global.universePropertyVersion = 2
-        addCommandSet()
-
         Universe.hiveDataIterator = nil
+    end
+    if global.universePropertyVersion < 3 then
+        global.universePropertyVersion = 3
+        addCommandSet()
     end
 end
 
@@ -574,15 +573,7 @@ function Upgrade.attempt()
 
         game.forces.enemy.kill_all_units()
 
-        local lookup = {}
         for _, map in pairs(Universe.maps) do
-            local entities = map.surface.find_entities_filtered({
-                    type = "unit-spawner",
-                    force = "enemy"
-            })
-            for i = 1, #entities do
-                lookup[entities[i].unit_number] = true
-            end
             for _, chunk in pairs(map.processQueue) do
                 chunk[CHUNK_TICK] = 0
                 chunk[BASE_PHEROMONE] = 0
@@ -592,21 +583,50 @@ function Upgrade.attempt()
                 chunk[KAMIKAZE_PHEROMONE] = 0
             end
         end
+    end
+    if global.gameVersion < 3 then
+        global.gameVersion = 3
 
-        for entityId in pairs(Universe.activeHives) do
-            if not lookup[entityId] then
-                Universe.activeHives[entityId] = nil
-                Universe.hives[entityId] = nil
+        local lookup = {}
+        for _, map in pairs(Universe.maps) do
+            local entities = map.surface.find_entities_filtered({
+                    type = {"unit-spawner", "turret"},
+                    force = "enemy"
+            })
+            for i = 1, #entities do
+                local entity = entities[i]
+                lookup[entity.unit_number] = entity
             end
         end
-        for entityId in pairs(Universe.hives) do
+        for entityId, hiveData in pairs(Universe.activeHives) do
             if not lookup[entityId] then
                 Universe.activeHives[entityId] = nil
+            else
+                Universe.hives[entityId] = hiveData
+            end
+        end
+        for entityId, hiveData in pairs(Universe.hives) do
+            if not lookup[entityId] then
                 Universe.hives[entityId] = nil
+            else
+                hiveData.e = lookup[entityId]
+                hiveData.position = hiveData.e.position
+            end
+        end
+        for entityId, hiveData in pairs(Universe.hiveData) do
+            if not lookup[entityId] then
+                Universe.hiveData[entityId] = nil
+            else
+                if not Universe.hives[hiveData.hiveId] then
+                    Universe.hiveData[entityId] = nil
+                elseif not hiveData.e then
+                    Universe.hiveData[entityId] = nil
+                end
             end
         end
 
 	Universe.hiveIterator = nil
+	Universe.hiveDataIterator = nil
     end
 end
 

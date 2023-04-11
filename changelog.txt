@@ -1,3 +1,21 @@
+---------------------------------------------------------------------------------------------------
+Version: 3.3.2
+  Bugfixes:
+    - Fixed on_entity_died group could be invalid
+
+---------------------------------------------------------------------------------------------------
+Version: 3.3.1
+  Tweaks:
+    - Increased number of active and raid nests per allowed settler group per regional base to 700
+  Bugfixes:
+    - Fixed hive owned structure cleanup routine from not checking hive id correctly
+    - Fixed hive building cursor drifting
+    - Fixed hive not updating build stats when upgraded
+    - Fixed other modded enemy structures not be registered with Rampant
+    - Added check for downgraded mod versions on the same save with pre-3.2.0
+    - Fixed typo in Regenerative faction mod setting
+
+---------------------------------------------------------------------------------------------------
 Version: 3.3.0
   Improvements:
     - Re-added kamikaze squad state to prevent unit group dancing and then disbanding
